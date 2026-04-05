@@ -13,6 +13,7 @@ const Color _surface = Color(0xFFFAF9FF);
 const Color _surfaceCard = Color(0xFFFFFFFF);
 const Color _onSurface = Color(0xFF1A1528);
 const Color _midTone = Color(0xFF6B6882);
+const Color _appBarColor = Color(0xFF2D1B6B);
 // ─────────────────────────────────────────────────────────────────────────────
 
 const String _prefsKey = 'styleiq_privacy_settings_v1';
@@ -312,7 +313,7 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
     return SliverAppBar(
       pinned: true,
       expandedHeight: 112,
-      backgroundColor: const Color(0xFF2D1B6B),
+      backgroundColor: _appBarColor,
       surfaceTintColor: Colors.transparent,
       leading: IconButton(
         icon: const Icon(Icons.arrow_back_ios_new_rounded,
@@ -322,7 +323,7 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
       flexibleSpace: FlexibleSpaceBar(
         collapseMode: CollapseMode.pin,
         background: Container(
-          color: const Color(0xFF2D1B6B),
+          color: _appBarColor,
           padding: EdgeInsets.fromLTRB(20, topPad + 56, 20, 16),
           alignment: Alignment.bottomLeft,
           child: Text(

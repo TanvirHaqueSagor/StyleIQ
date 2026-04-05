@@ -130,7 +130,8 @@ class _MakeoverScreenState extends State<MakeoverScreen> {
     return Scaffold(
       backgroundColor: AppTheme.darkBg,
       appBar: AppBar(
-        backgroundColor: AppTheme.darkSurface,
+        backgroundColor: const Color(0xFF2D1B6B),
+        surfaceTintColor: Colors.transparent,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 20),
           onPressed: () => context.pop(),
@@ -141,14 +142,11 @@ class _MakeoverScreenState extends State<MakeoverScreen> {
             color: Colors.white,
             fontSize: 18,
             fontWeight: FontWeight.w700,
+            letterSpacing: -0.2,
           ),
         ),
-        centerTitle: true,
+        centerTitle: false,
         elevation: 0,
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1),
-          child: Container(height: 1, color: AppTheme.darkBorder),
-        ),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),

@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:http/http.dart' as http;
-import 'package:styleiq/core/constants/app_constants.dart';
+import 'package:styleiq/core/constants/api_keys.dart';
 
 /// Result from image generation
 class GeneratedImage {
@@ -42,7 +42,7 @@ class ImageGenerationService {
 
   ImageGenerationService({http.Client? client})
       : _client = client ?? http.Client(),
-        _apiKey = AppConstants.falApiKey;
+        _apiKey = ApiKeys.falApiKey;
 
   bool get isAvailable => _apiKey.isNotEmpty;
 

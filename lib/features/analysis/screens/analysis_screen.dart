@@ -130,7 +130,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _analysis != null ? const Color(0xFF0a0a0f) : null,
+      backgroundColor: AppTheme.darkBg,
       appBar: const ScreenAppBar(title: 'Style Analysis'),
       body: _buildBody(),
     );
@@ -185,19 +185,21 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
           Text('Analysis Failed',
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.bold,
+                    color: Colors.white,
                   )),
           const SizedBox(height: 16),
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: const Color(0xFFF6F5FB),
+              color: AppTheme.darkCard,
               borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AppTheme.darkBorder),
             ),
             child: Text(
               _error ?? 'Unknown error',
-              style: const TextStyle(
-                color: AppTheme.darkGrey,
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.75),
                 fontSize: 14,
                 height: 1.5,
               ),
@@ -262,7 +264,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
         ),
         Container(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-          color: const Color(0xFF0a0a0f),
+          color: AppTheme.darkBg,
           child: Row(
             children: [
               Expanded(

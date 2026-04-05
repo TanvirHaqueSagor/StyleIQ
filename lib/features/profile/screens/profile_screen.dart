@@ -116,7 +116,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.scaffoldBg,
+      backgroundColor: AppTheme.darkBg,
       body: RefreshIndicator(
         onRefresh: _loadData,
         child: CustomScrollView(
@@ -299,25 +299,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppTheme.darkCard,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          )
-        ],
+        border: Border.all(color: AppTheme.darkBorder),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Current Focus',
             style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w700,
-              color: AppTheme.mediumGrey,
+              color: Colors.white.withValues(alpha: 0.5),
             ),
           ),
           const SizedBox(height: 8),
@@ -326,16 +320,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
             style: const TextStyle(
               fontSize: 17,
               fontWeight: FontWeight.w800,
-              color: AppTheme.dark,
+              color: Colors.white,
             ),
           ),
           const SizedBox(height: 6),
-          const Text(
+          Text(
             'Use your next analysis, hairstyle suggestions, or guide recommendations to improve this dimension first.',
             style: TextStyle(
               fontSize: 13,
               height: 1.45,
-              color: AppTheme.mediumGrey,
+              color: Colors.white.withValues(alpha: 0.55),
             ),
           ),
         ],
@@ -364,15 +358,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         const SizedBox(height: 12),
         Container(
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: AppTheme.darkCard,
             borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.04),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              )
-            ],
+            border: Border.all(color: AppTheme.darkBorder),
           ),
           child: Column(
             children: _stylePrefs.entries.toList().asMap().entries.map((e) {
@@ -407,15 +395,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         const SizedBox(height: 12),
         Container(
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: AppTheme.darkCard,
             borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.04),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              )
-            ],
+            border: Border.all(color: AppTheme.darkBorder),
           ),
           child: Column(
             children: [
@@ -489,10 +471,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           icon: const Icon(Icons.refresh, size: 16),
           label: const Text('Redo Style Quiz'),
           style: OutlinedButton.styleFrom(
-            foregroundColor: AppTheme.mediumGrey,
-            side: BorderSide(color: AppTheme.mediumGrey.withValues(alpha: 0.4)),
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            foregroundColor: Colors.white.withValues(alpha: 0.6),
+            side: const BorderSide(color: AppTheme.darkBorder),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             minimumSize: const Size(double.infinity, 44),
           ),
         ),
@@ -521,15 +502,9 @@ class _StatCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppTheme.darkCard,
         borderRadius: BorderRadius.circular(14),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          )
-        ],
+        border: Border.all(color: AppTheme.darkBorder),
       ),
       child: Column(
         children: [
@@ -547,7 +522,7 @@ class _StatCard extends StatelessWidget {
           Text(
             label,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppTheme.mediumGrey,
+                  color: Colors.white.withValues(alpha: 0.5),
                 ),
             textAlign: TextAlign.center,
             maxLines: 2,
@@ -586,7 +561,7 @@ class _PrefTile extends StatelessWidget {
                 child: Text(
                   label,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: AppTheme.mediumGrey,
+                        color: Colors.white.withValues(alpha: 0.5),
                       ),
                 ),
               ),
@@ -594,7 +569,7 @@ class _PrefTile extends StatelessWidget {
                 value,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       fontWeight: FontWeight.w600,
-                      color: AppTheme.darkGrey,
+                      color: Colors.white,
                     ),
               ),
             ],
@@ -604,7 +579,7 @@ class _PrefTile extends StatelessWidget {
           const Divider(
             height: 1,
             indent: 48,
-            color: AppTheme.lightGrey,
+            color: AppTheme.darkBorder,
           ),
       ],
     );
@@ -645,7 +620,7 @@ class _SettingsTile extends StatelessWidget {
           ),
           title: Text(
             label,
-            style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
+            style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14, color: Colors.white),
           ),
           trailing: Row(
             mainAxisSize: MainAxisSize.min,
@@ -673,7 +648,7 @@ class _SettingsTile extends StatelessWidget {
           ),
         ),
         if (showDivider)
-          const Divider(height: 1, indent: 64, color: AppTheme.lightGrey),
+          const Divider(height: 1, indent: 64, color: AppTheme.darkBorder),
       ],
     );
   }

@@ -1,5 +1,6 @@
 import 'dart:convert';
-
+import 'dart:developer' as developer;
+import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:styleiq/features/community/models/community_post.dart';
 
@@ -28,7 +29,8 @@ class CommunityService {
       return list
           .map((e) => Map<String, String>.from(e as Map))
           .toList();
-    } catch (_) {
+    } catch (e, stack) {
+      developer.log('Error decoding comments for post $postId', error: e, stackTrace: stack);
       return [];
     }
   }
@@ -47,12 +49,14 @@ class CommunityService {
   // ── CRUD ───────────────────────────────────────────────────────────────────
 
   Future<List<CommunityPost>> getPosts() async {
-    final posts = _box.values.map((raw) {
+    final rawValues = _box.values.toList();
+    final posts = rawValues.map((raw) {
       try {
         return CommunityPost.fromJson(
           jsonDecode(raw) as Map<String, dynamic>,
         );
-      } catch (_) {
+      } catch (e) {
+        if (kDebugMode) print('Error parsing post: $e');
         return null;
       }
     }).whereType<CommunityPost>().toList();
