@@ -14,7 +14,7 @@ StyleIQ is a Flutter mobile app that turns your phone into a personal fashion an
 | **Virtual Wardrobe** | Save outfit photos, categorise by type, build a personal clothing inventory |
 | **Style DNA Profile** | Onboarding quiz stores preferences used to personalise every analysis |
 | **Daily Tips** | Rotating style education cards on the home screen |
-| **Community** | Share looks and get feedback (coming soon) |
+| **Community (Preview)** | Browse inspiration and share looks locally in preview mode |
 
 ---
 
@@ -119,9 +119,9 @@ flutter run -d <device-id>
 
 | Tier | Price | Analyses/Month | Wardrobe Items | Features |
 |---|---|---|---|---|
-| Free | $0 | 3 | 0 | Basic analysis |
-| Style+ | $4.99/mo | 30 | 50 | + Hairstyle, Cultural guide, 5 makeovers |
-| Style Pro | $9.99/mo | Unlimited | Unlimited | + Priority AI, score card export, advanced insights |
+| Free | $0 | 3 | 10 | Basic analysis, local progress, cultural guide |
+| Style+ | $4.99/mo | 30 | 50 | Preview only until billing launches |
+| Style Pro | $9.99/mo | Unlimited | Unlimited | Preview only until billing launches |
 | Family | $14.99/mo | Unlimited (4 members) | Unlimited | All Style Pro features |
 
 ---
@@ -146,7 +146,7 @@ All modules return **raw JSON only** — no markdown, no code blocks.
 - `withValues(alpha: x)` not `.withOpacity(x)` (Flutter 3.x)
 - `super.key` constructor syntax throughout
 - Hive boxes: `analysisBox`, `wardrobeBox` — serialised with `jsonEncode`/`jsonDecode`
-- Free tier gate: check `analyses.length >= AppConstants.freeAnalysesPerMonth` before calling API
+- Free tier gate: use `SubscriptionCapabilityService` for analysis and wardrobe limits
 
 ---
 
@@ -154,7 +154,7 @@ All modules return **raw JSON only** — no markdown, no code blocks.
 
 - [ ] Firebase Auth integration (login / sign-up screens)
 - [ ] Riverpod providers wired to all screens
-- [ ] Community screen (share looks, trending styles)
+- [ ] Community screen backed by a real networked feed
 - [ ] Supabase backend + cloud sync
 - [ ] Stripe payment integration
 - [ ] Push notifications for daily style tips

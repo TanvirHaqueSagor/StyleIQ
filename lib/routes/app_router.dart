@@ -6,13 +6,16 @@ import 'package:styleiq/features/analysis/screens/analysis_screen.dart';
 import 'package:styleiq/features/analysis/screens/home_screen.dart';
 import 'package:styleiq/features/community/screens/community_screen.dart';
 import 'package:styleiq/features/cultural_guide/screens/guide_screen.dart';
+import 'package:styleiq/features/history/screens/history_screen.dart';
 import 'package:styleiq/features/makeover/screens/hairstyle_screen.dart';
+import 'package:styleiq/features/makeover/screens/makeover_screen.dart';
 import 'package:styleiq/features/notifications/screens/notification_center_screen.dart';
 import 'package:styleiq/features/onboarding/screens/onboarding_screen.dart';
 import 'package:styleiq/features/profile/screens/privacy_settings_screen.dart';
-import 'package:styleiq/features/profile/screens/notification_settings_screen.dart';
 import 'package:styleiq/features/profile/screens/profile_screen.dart';
+import 'package:styleiq/features/settings/screens/notification_settings_screen.dart';
 import 'package:styleiq/features/subscription/screens/subscription_screen.dart';
+import 'package:styleiq/features/engagement/screens/engagement_dashboard_screen.dart';
 import 'package:styleiq/features/live_camera/screens/live_camera_screen.dart';
 import 'package:styleiq/features/wardrobe/screens/wardrobe_screen.dart';
 
@@ -73,6 +76,10 @@ final appRouter = GoRouter(
       builder: (_, __) => const NotificationCenterScreen(),
     ),
     GoRoute(
+      path: '/engagement',
+      builder: (_, __) => const EngagementDashboardScreen(),
+    ),
+    GoRoute(
       path: '/settings/notifications',
       builder: (_, __) => const NotificationSettingsScreen(),
     ),
@@ -88,6 +95,14 @@ final appRouter = GoRouter(
       path: '/live',
       builder: (_, __) => const LiveCameraScreen(),
     ),
+    GoRoute(
+      path: '/history',
+      builder: (_, __) => const HistoryScreen(),
+    ),
+    GoRoute(
+      path: '/makeover',
+      builder: (_, __) => const MakeoverScreen(),
+    ),
 
     // ── Bottom-nav shell: Home / Guide / Wardrobe / Profile ─────────────────
     StatefulShellRoute.indexedStack(
@@ -101,7 +116,8 @@ final appRouter = GoRouter(
           GoRoute(path: '/guide', builder: (_, __) => const GuideScreen()),
         ]),
         StatefulShellBranch(routes: [
-          GoRoute(path: '/wardrobe', builder: (_, __) => const WardrobeScreen()),
+          GoRoute(
+              path: '/wardrobe', builder: (_, __) => const WardrobeScreen()),
         ]),
         StatefulShellBranch(routes: [
           GoRoute(path: '/profile', builder: (_, __) => const ProfileScreen()),

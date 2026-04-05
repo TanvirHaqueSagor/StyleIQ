@@ -2,9 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:styleiq/core/services/app_user_service.dart';
+import 'package:styleiq/core/services/subscription_capability_service.dart';
 import 'package:styleiq/core/theme/app_theme.dart';
 import 'package:styleiq/core/widgets/styleiq_logo.dart';
+import 'package:styleiq/features/analysis/models/style_analysis.dart';
 import 'package:styleiq/features/analysis/services/analysis_service.dart';
+import 'package:styleiq/models/subscription_plan.dart';
 import 'package:styleiq/routes/app_router.dart';
 import 'package:styleiq/services/storage/local_storage_service.dart';
 
@@ -21,8 +25,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   int _analysisCount = 0;
   int _wardrobeCount = 0;
+  int _savedLookCount = 0;
+  String? _focusArea;
   Map<String, String> _stylePrefs = {};
+  SubscriptionPlan _subscription = SubscriptionCapabilityService.freePlan();
   bool _loading = true;
+
+  String get _userId => AppUserService.currentUserId;
 
   @override
   void initState() {
@@ -32,28 +41,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _loadData() async {
     try {
-      final analyses = await _analysisService.getAnalysisHistory('guest');
-      final wardrobe = await _storage.getWardrobeItems('guest');
-      final prefs = await SharedPreferences.getInstance();
-
-      final stylePrefs = <String, String>{};
-      for (final key in [
-        'dress_code',
-        'color_palette',
-        'style_goals',
-        'cultural_background',
-        'fashion_adventure',
-        'shopping_budget',
-      ]) {
-        final v = prefs.getString(key);
-        if (v != null && v.isNotEmpty) stylePrefs[key] = v;
-      }
+      final userId = _userId;
+      final analyses = await _analysisService.getAnalysisHistory(userId);
+      final wardrobe = await _storage.getWardrobeItems(userId);
+      final stylePrefs = await AppUserService.getStylePreferences();
+      final subscription = await _storage.getSubscription(userId);
 
       if (mounted) {
+        final focusArea = _deriveFocusArea(analyses);
         setState(() {
           _analysisCount = analyses.length;
           _wardrobeCount = wardrobe.length;
+          _savedLookCount =
+              analyses.fold(0, (sum, a) => sum + a.generatedMockups.length);
+          _focusArea = focusArea;
           _stylePrefs = stylePrefs;
+          _subscription = subscription;
           _loading = false;
         });
       }
@@ -87,6 +90,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
     'shopping_budget': '💳',
   };
 
+  static String? _deriveFocusArea(List<StyleAnalysis> analyses) {
+    if (analyses.isEmpty) return null;
+    final totals = <String, double>{
+      'Color': 0,
+      'Fit': 0,
+      'Occasion': 0,
+      'Trend': 0,
+      'Cohesion': 0,
+    };
+    for (final analysis in analyses) {
+      totals['Color'] =
+          totals['Color']! + analysis.dimensions.colorHarmony.score;
+      totals['Fit'] = totals['Fit']! + analysis.dimensions.fitProportion.score;
+      totals['Occasion'] =
+          totals['Occasion']! + analysis.dimensions.occasionMatch.score;
+      totals['Trend'] =
+          totals['Trend']! + analysis.dimensions.trendAlignment.score;
+      totals['Cohesion'] =
+          totals['Cohesion']! + analysis.dimensions.styleCohesion.score;
+    }
+    return totals.entries.reduce((a, b) => a.value < b.value ? a : b).key;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -112,6 +138,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         children: [
                           const SizedBox(height: 24),
                           _buildStats(),
+                          if (_focusArea != null) ...[
+                            const SizedBox(height: 20),
+                            _buildProgressFocus(),
+                          ],
                           if (_stylePrefs.isNotEmpty) ...[
                             const SizedBox(height: 28),
                             _buildStyleDNA(),
@@ -130,13 +160,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   // ── Header ────────────────────────────────────────────────────────────────
   SliverAppBar _buildHeader() {
-    return SliverAppBar(
+    return const SliverAppBar(
       pinned: true,
       automaticallyImplyLeading: false,
-      backgroundColor: const Color(0xFF2D1B6B),
+      backgroundColor: Color(0xFF2D1B6B),
       surfaceTintColor: Colors.transparent,
       centerTitle: false,
-      title: const Text(
+      title: Text(
         'My Profile',
         style: TextStyle(
           color: Colors.white,
@@ -145,21 +175,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           letterSpacing: -0.2,
         ),
       ),
-      actions: [
-        Padding(
-          padding: const EdgeInsets.only(right: 12),
-          child: Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: const Icon(Icons.edit_outlined,
-                color: Colors.white, size: 18),
-          ),
-        ),
-      ],
+      actions: [],
     );
   }
 
@@ -215,12 +231,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: const Text(
-                        '✦  Free Plan',
+                        '✦  Local only',
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
                         ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      _subscription.isFree
+                          ? 'Free plan active on this device'
+                          : '${_subscription.name} preview saved locally',
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
                   ],
@@ -257,17 +284,63 @@ class _ProfileScreenState extends State<ProfileScreen> {
         const SizedBox(width: 12),
         Expanded(
           child: _StatCard(
-            value: '${3 - _analysisCount.clamp(0, 3)}',
-            label: 'Free Left',
+            value: '$_savedLookCount',
+            label: 'Saved Looks',
             icon: Icons.auto_awesome,
             color: AppTheme.amber,
           ),
         ),
       ],
-    )
-        .animate()
-        .fadeIn(duration: 400.ms)
-        .slideY(begin: 0.1, end: 0);
+    ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.1, end: 0);
+  }
+
+  Widget _buildProgressFocus() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          )
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Current Focus',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: AppTheme.mediumGrey,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Most room to improve: $_focusArea',
+            style: const TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w800,
+              color: AppTheme.dark,
+            ),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Use your next analysis, hairstyle suggestions, or guide recommendations to improve this dimension first.',
+            style: TextStyle(
+              fontSize: 13,
+              height: 1.45,
+              color: AppTheme.mediumGrey,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   // ── Style DNA ─────────────────────────────────────────────────────────────
@@ -277,8 +350,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       children: [
         Row(
           children: [
-            const Text('🧬',
-                style: TextStyle(fontSize: 18)),
+            const Text('🧬', style: TextStyle(fontSize: 18)),
             const SizedBox(width: 8),
             Text(
               'Your Style DNA',
@@ -354,6 +426,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 onTap: () => context.push('/settings/notifications'),
               ),
               _SettingsTile(
+                icon: Icons.auto_awesome_outlined,
+                label: 'Style Challenges',
+                color: AppTheme.coral,
+                onTap: () => context.push('/engagement'),
+              ),
+              _SettingsTile(
                 icon: Icons.privacy_tip_outlined,
                 label: 'Privacy',
                 color: AppTheme.accentMain,
@@ -377,7 +455,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   applicationLegalese: '© 2025 StyleIQ. All rights reserved.',
                   children: [
                     const SizedBox(height: 12),
-                    const Text('AI-powered personal style intelligence. Analyze, improve, and celebrate your unique style.'),
+                    const Text(
+                        'AI-powered personal style intelligence. Analyze, improve, and celebrate your unique style.'),
                   ],
                 ),
                 showDivider: false,
@@ -389,8 +468,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
         // Redo onboarding
         OutlinedButton.icon(
           onPressed: () async {
-            final prefs = await SharedPreferences.getInstance();
-            await prefs.remove('completed_onboarding');
+            final prefs = await AppUserService.getStylePreferences();
+            if (prefs.isNotEmpty && mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                    content: Text(
+                        'Profile answers stay saved. Onboarding will reopen after app restart.')),
+              );
+            }
+            final sharedPrefs = await SharedPreferences.getInstance();
+            await sharedPrefs.remove('completed_onboarding');
             resetOnboardingFlag();
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
@@ -566,8 +653,8 @@ class _SettingsTile extends StatelessWidget {
               if (showBadge)
                 Container(
                   margin: const EdgeInsets.only(right: 8),
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 8, vertical: 2),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   decoration: BoxDecoration(
                     color: AppTheme.amber.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(10),

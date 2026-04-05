@@ -25,6 +25,22 @@ class AuthService {
   /// Get authentication state stream
   Stream<User?> get authStateChanges => _firebaseAuth.authStateChanges();
 
+  /// Anonymous sign-in (for first-run guest experience)
+  Future<UserProfile> signInAnonymously() async {
+    try {
+      final userCredential = await _firebaseAuth.signInAnonymously();
+      final user = userCredential.user!;
+      return UserProfile(
+        id: user.uid,
+        email: user.email,
+        displayName: 'Guest',
+        photoUrl: user.photoURL,
+      );
+    } on FirebaseAuthException catch (e) {
+      throw _handleAuthException(e);
+    }
+  }
+
   /// Sign up with email and password
   Future<UserProfile> signUpWithEmail({
     required String email,

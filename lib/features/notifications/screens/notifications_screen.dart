@@ -4,61 +4,58 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:styleiq/core/services/app_user_service.dart';
 import 'package:styleiq/core/theme/app_theme.dart';
 import 'package:styleiq/models/notification.dart' as siq;
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
-const Color _surface     = Color(0xFFFAF9FF);
-const Color _surfaceLow  = Color(0xFFF0EFF9);
+const Color _surface = Color(0xFFFAF9FF);
+const Color _surfaceLow = Color(0xFFF0EFF9);
 const Color _surfaceCard = Color(0xFFFFFFFF);
-const Color _onSurface   = Color(0xFF1A1528);
-const Color _midTone     = Color(0xFF6B6882);
-const Color _unreadDot   = AppTheme.primaryMain;
+const Color _onSurface = Color(0xFF1A1528);
+const Color _midTone = Color(0xFF6B6882);
+const Color _unreadDot = AppTheme.primaryMain;
 // ─────────────────────────────────────────────────────────────────────────────
 
 const String _prefsKey = 'styleiq_notifications_v1';
 
 /// Sample notifications shown when the inbox is first opened.
-List<siq.Notification> _seedNotifications() => [
+List<siq.Notification> _seedNotifications(String userId) => [
       siq.Notification(
-        userId: 'guest',
+        userId: userId,
         title: 'Welcome to StyleIQ! 🎉',
         message:
             'Your AI style journey starts now. Upload your first outfit and get a score.',
         type: 'welcome',
         category: 'system',
-        createdAt:
-            DateTime.now().subtract(const Duration(minutes: 2)),
+        createdAt: DateTime.now().subtract(const Duration(minutes: 2)),
       ),
       siq.Notification(
-        userId: 'guest',
+        userId: userId,
         title: 'Style Tip of the Day',
         message:
             'Neutral tones pair effortlessly with bold accessories. Try a statement belt or bag today.',
         type: 'style_tip',
         category: 'tips',
-        createdAt:
-            DateTime.now().subtract(const Duration(hours: 5)),
+        createdAt: DateTime.now().subtract(const Duration(hours: 5)),
       ),
       siq.Notification(
-        userId: 'guest',
+        userId: userId,
         title: 'Cultural Spotlight: Holi',
         message:
             'Holi is around the corner — explore vibrant colour combinations that celebrate the festival.',
         type: 'cultural',
         category: 'cultural',
-        createdAt:
-            DateTime.now().subtract(const Duration(days: 1)),
+        createdAt: DateTime.now().subtract(const Duration(days: 1)),
       ),
       siq.Notification(
-        userId: 'guest',
+        userId: userId,
         title: 'New Feature: Live Camera',
         message:
             'Get real-time outfit scores while you dress up. Tap the camera icon on the home screen.',
         type: 'feature',
         category: 'system',
-        createdAt:
-            DateTime.now().subtract(const Duration(days: 3)),
+        createdAt: DateTime.now().subtract(const Duration(days: 3)),
       ),
     ];
 
@@ -87,17 +84,32 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       final raw = prefs.getString(_prefsKey);
       if (raw == null) {
         // First open — seed with demo notifications
-        final seeded = _seedNotifications();
+        final seeded = _seedNotifications(AppUserService.currentUserId);
         await _save(seeded);
-        if (mounted) setState(() { _notifications = seeded; _loading = false; });
+        if (mounted) {
+          setState(() {
+            _notifications = seeded;
+            _loading = false;
+          });
+        }
       } else {
         final list = (jsonDecode(raw) as List<dynamic>)
             .map((e) => siq.Notification.fromJson(e as Map<String, dynamic>))
             .toList();
-        if (mounted) setState(() { _notifications = list; _loading = false; });
+        if (mounted) {
+          setState(() {
+            _notifications = list;
+            _loading = false;
+          });
+        }
       }
     } catch (_) {
-      if (mounted) setState(() { _notifications = _seedNotifications(); _loading = false; });
+      if (mounted) {
+        setState(() {
+          _notifications = _seedNotifications(AppUserService.currentUserId);
+          _loading = false;
+        });
+      }
     }
   }
 
@@ -110,9 +122,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   Future<void> _markRead(siq.Notification n) async {
-    final updated = _notifications
-        .map((x) => x.id == n.id ? x.markAsRead() : x)
-        .toList();
+    final updated =
+        _notifications.map((x) => x.id == n.id ? x.markAsRead() : x).toList();
     await _save(updated);
     if (mounted) setState(() => _notifications = updated);
   }
@@ -352,8 +363,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               color: _surfaceLow,
               borderRadius: BorderRadius.circular(22),
             ),
-            child:
-                const Icon(Icons.notifications_none_rounded, size: 36, color: _midTone),
+            child: const Icon(Icons.notifications_none_rounded,
+                size: 36, color: _midTone),
           ),
           const SizedBox(height: 20),
           Text(

@@ -163,8 +163,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         emoji: q['emoji']!,
                         question: q['question']!,
                         questionKey: q['key']!,
-                        options:
-                            _optionsByKey[q['key']]!,
+                        options: _optionsByKey[q['key']]!,
                       )),
                 ],
               ),
@@ -204,7 +203,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           ).animate().fadeIn(delay: 200.ms),
           const SizedBox(height: 14),
           Text(
-            'Your personal AI fashion analyst.\nLet\'s set up your style profile in 60 seconds.',
+            'Your personal outfit coach.\nAnswer a few quick questions so your first analysis feels personal.',
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                   color: AppTheme.mediumGrey,
                   height: 1.6,
@@ -214,9 +213,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           const SizedBox(height: 40),
           // Feature bullets
           ...[
-            ('🎯', 'Personalised outfit scores'),
-            ('🌍', 'Cultural dress code guidance'),
-            ('✂️', 'Hairstyle recommendations'),
+            ('🎯', 'Practical outfit feedback'),
+            ('🌍', 'Occasion and cultural guidance'),
+            ('✂️', 'Helpful next-step suggestions'),
           ].map((item) => Padding(
                 padding: const EdgeInsets.only(bottom: 14),
                 child: Row(
@@ -354,51 +353,74 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           )
         ],
       ),
-      child: Row(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          if (!isWelcome)
-            IconButton(
-              onPressed: () => _goTo(_currentPage - 1),
-              icon: const Icon(Icons.arrow_back_ios_new),
-              style: IconButton.styleFrom(
-                backgroundColor: AppTheme.lightGrey,
-                foregroundColor: AppTheme.darkGrey,
+          if (isLastQuestion)
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: AppTheme.primaryMain.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(14),
               ),
-            )
-          else
-            const SizedBox(width: 48),
-          const SizedBox(width: 12),
-          Expanded(
-            child: ElevatedButton(
-              onPressed: answered
-                  ? () {
-                      if (isWelcome) {
-                        _goTo(1);
-                      } else if (isLastQuestion) {
-                        _completeOnboarding();
-                      } else {
-                        _goTo(_currentPage + 1);
-                      }
-                    }
-                  : null,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.primaryMain,
-                foregroundColor: Colors.white,
-                disabledBackgroundColor: AppTheme.lightGrey,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14)),
-              ),
-              child: Text(
-                isWelcome
-                    ? 'Get Started'
-                    : isLastQuestion
-                        ? 'Complete Setup ✓'
-                        : 'Next',
-                style: const TextStyle(
-                    fontWeight: FontWeight.bold, fontSize: 15),
+              child: const Text(
+                'You are almost done. After this, StyleIQ will build your local style profile and guide you into your first outfit analysis.',
+                style: TextStyle(
+                  color: AppTheme.darkGrey,
+                  fontSize: 13,
+                  height: 1.4,
+                ),
               ),
             ),
+          Row(
+            children: [
+              if (!isWelcome)
+                IconButton(
+                  onPressed: () => _goTo(_currentPage - 1),
+                  icon: const Icon(Icons.arrow_back_ios_new),
+                  style: IconButton.styleFrom(
+                    backgroundColor: AppTheme.lightGrey,
+                    foregroundColor: AppTheme.darkGrey,
+                  ),
+                )
+              else
+                const SizedBox(width: 48),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: answered
+                      ? () {
+                          if (isWelcome) {
+                            _goTo(1);
+                          } else if (isLastQuestion) {
+                            _completeOnboarding();
+                          } else {
+                            _goTo(_currentPage + 1);
+                          }
+                        }
+                      : null,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primaryMain,
+                    foregroundColor: Colors.white,
+                    disabledBackgroundColor: AppTheme.lightGrey,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14)),
+                  ),
+                  child: Text(
+                    isWelcome
+                        ? 'Build My Profile'
+                        : isLastQuestion
+                            ? 'Save Profile & Continue'
+                            : 'Next',
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold, fontSize: 15),
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -453,7 +475,8 @@ class _OptionTile extends StatelessWidget {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: isSelected ? AppTheme.primaryMain : AppTheme.mediumGrey,
+                  color:
+                      isSelected ? AppTheme.primaryMain : AppTheme.mediumGrey,
                   width: 2,
                 ),
                 color: isSelected ? AppTheme.primaryMain : Colors.transparent,
@@ -467,10 +490,8 @@ class _OptionTile extends StatelessWidget {
               child: Text(
                 label,
                 style: TextStyle(
-                  color:
-                      isSelected ? AppTheme.primaryMain : AppTheme.darkGrey,
-                  fontWeight:
-                      isSelected ? FontWeight.bold : FontWeight.normal,
+                  color: isSelected ? AppTheme.primaryMain : AppTheme.darkGrey,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                   fontSize: 15,
                 ),
               ),

@@ -19,24 +19,31 @@ class AppConstants {
   static const double trendAlignmentWeight = 0.15;
   static const double styleCohesionWeight = 0.15;
 
-  // Free tier limits (matches business model: 3 ratings/month, no wardrobe)
+  // Free tier limits
   static const int freeTierAnalysesPerMonth = 3;
-  static const int freeTierWardrobeItems = 0;
+  static const int freeTierWardrobeItems = 10;
 
   // Pricing tiers (matches StyleIQ business model)
   static const String pricingFree = 'Free';
-  static const String pricingStylePlus = 'Style+';   // $4.99/mo
+  static const String pricingStylePlus = 'Style+'; // $4.99/mo
   static const String pricingStylePro = 'Style Pro'; // $9.99/mo
-  static const String pricingFamily = 'Family';      // $14.99/mo
+  static const String pricingFamily = 'Family'; // $14.99/mo
 
   // Style+ tier limits
   static const int stylePlusMakeoverPerMonth = 5;
   static const int stylePlusWardrobeItems = 50;
 
   // API configuration
-  static const String claudeApiEndpoint = 'https://api.anthropic.com/v1/messages';
+  static const String claudeApiEndpoint =
+      'https://api.anthropic.com/v1/messages';
   static const String claudeModel = 'claude-sonnet-4-20250514';
   static const int claudeMaxTokens = 4096;
+
+  // FAL.ai image generation — set via environment / api_keys.dart
+  static const String falApiKey = String.fromEnvironment('FAL_API_KEY', defaultValue: '');
+
+  // Stripe — set via environment / api_keys.dart
+  static const String stripePublishableKey = String.fromEnvironment('STRIPE_PK', defaultValue: '');
   static const int claudeTimeoutSeconds = 30;
 
   // Firebase configuration

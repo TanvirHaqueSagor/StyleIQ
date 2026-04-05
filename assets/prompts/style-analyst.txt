@@ -87,7 +87,13 @@ c) IMPROVEMENT SUGGESTIONS: 2-3 specific, actionable suggestions, each with:
    - Estimated score impact (e.g., '+6 points')
    - Budget-friendly alternative (under $30 option where possible)
 
-d) STYLE INSIGHT: One educational fashion tip related to this outfit (teach the user
+d) QUICK WINS: 2-3 ultra-short action lines that start with a verb
+   (e.g., 'Swap white sneakers for darker loafers')
+
+e) IMPROVED LOOK NARRATIVE: One vivid sentence describing how the outfit would feel
+   after the suggested changes
+
+f) STYLE INSIGHT: One educational fashion tip related to this outfit (teach the user
    something about style theory, cultural fashion, or trend context)
 
 === RESPONSE FORMAT (JSON) ===
@@ -95,6 +101,7 @@ Always return your analysis as valid JSON with NO markdown, NO code blocks, just
 
 {
   "headline": "string",
+  "easy_summary": "string",
   "overall_score": number,
   "letter_grade": "string (S, A+, A, B+, B, C+, C, D, F)",
   "dimensions": {
@@ -113,6 +120,8 @@ Always return your analysis as valid JSON with NO markdown, NO code blocks, just
       "budget_option": "string"
     }
   ],
+  "quick_wins": ["string", "string"],
+  "improved_look_narrative": "string",
   "style_insight": "string",
   "detected_items": ["string"],
   "cultural_context": "string or null",

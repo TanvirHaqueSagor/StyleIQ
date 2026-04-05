@@ -4,19 +4,22 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:styleiq/core/services/app_user_service.dart';
+import 'package:styleiq/core/services/subscription_capability_service.dart';
 import 'package:styleiq/core/theme/app_theme.dart';
 import 'package:styleiq/core/utils/image_utils.dart';
 import 'package:styleiq/features/wardrobe/models/wardrobe_item.dart';
+import 'package:styleiq/models/subscription_plan.dart';
 import 'package:styleiq/services/storage/local_storage_service.dart';
 
 // ── Design tokens (editorial palette matched to StyleIQ purple) ─────────────
-const Color _surface       = Color(0xFFFAF9FF); // base background
-const Color _surfaceLow    = Color(0xFFF0EFF9); // secondary zone
-const Color _surfaceCard   = Color(0xFFFFFFFF); // lifted card
-const Color _onSurface     = Color(0xFF1A1528); // near-black, purple-tinted
-const Color _midTone       = Color(0xFF6B6882); // labels & secondary text
-const Color _chipActive    = Color(0xFF1A1528); // active filter pill
-const Color _gold          = Color(0xFFEF9F27); // AI / favourite accent
+const Color _surface = Color(0xFFFAF9FF); // base background
+const Color _surfaceLow = Color(0xFFF0EFF9); // secondary zone
+const Color _surfaceCard = Color(0xFFFFFFFF); // lifted card
+const Color _onSurface = Color(0xFF1A1528); // near-black, purple-tinted
+const Color _midTone = Color(0xFF6B6882); // labels & secondary text
+const Color _chipActive = Color(0xFF1A1528); // active filter pill
+const Color _gold = Color(0xFFEF9F27); // AI / favourite accent
 // ───────────────────────────────────────────────────────────────────────────
 
 class WardrobeScreen extends StatefulWidget {
@@ -28,19 +31,31 @@ class WardrobeScreen extends StatefulWidget {
 
 class _WardrobeScreenState extends State<WardrobeScreen> {
   final _storage = LocalStorageService();
-  final _picker  = ImagePicker();
+  final _picker = ImagePicker();
 
-  static const _guestUserId = 'guest';
   static const _categories = [
-    'All', 'Top', 'Bottom', 'Dress', 'Shoes', 'Accessory',
+    'All',
+    'Top',
+    'Bottom',
+    'Dress',
+    'Shoes',
+    'Accessory',
   ];
   static const _catLabels = [
-    'ALL', 'TOPS', 'BOTTOMS', 'DRESSES', 'SHOES', 'ACCESSORIES',
+    'ALL',
+    'TOPS',
+    'BOTTOMS',
+    'DRESSES',
+    'SHOES',
+    'ACCESSORIES',
   ];
 
   List<WardrobeItem> _items = [];
   String _selectedCat = 'All';
   bool _isLoading = true;
+  SubscriptionPlan _subscription = SubscriptionCapabilityService.freePlan();
+
+  String get _userId => AppUserService.currentUserId;
 
   @override
   void initState() {
@@ -51,8 +66,15 @@ class _WardrobeScreenState extends State<WardrobeScreen> {
   Future<void> _loadItems() async {
     setState(() => _isLoading = true);
     try {
-      final items = await _storage.getWardrobeItems(_guestUserId);
-      if (mounted) setState(() { _items = items; _isLoading = false; });
+      final items = await _storage.getWardrobeItems(_userId);
+      final subscription = await _storage.getSubscription(_userId);
+      if (mounted) {
+        setState(() {
+          _items = items;
+          _subscription = subscription;
+          _isLoading = false;
+        });
+      }
     } catch (_) {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -65,13 +87,30 @@ class _WardrobeScreenState extends State<WardrobeScreen> {
   // ── Add flow ───────────────────────────────────────────────────────────────
 
   Future<void> _addItem() async {
+    if (!SubscriptionCapabilityService.canAddWardrobeItem(
+      _subscription,
+      _items.length,
+    )) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Your free wardrobe is full on this device. Paid plans are preview-only until billing launches.',
+            ),
+          ),
+        );
+      }
+      return;
+    }
+
     if (!kIsWeb) {
       final status = await Permission.photos.request();
       if (!status.isGranted && !status.isLimited) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
             content: Text('Photo library permission is required'),
-            action: SnackBarAction(label: 'Settings', onPressed: openAppSettings),
+            action:
+                SnackBarAction(label: 'Settings', onPressed: openAppSettings),
           ));
         }
         return;
@@ -93,17 +132,17 @@ class _WardrobeScreenState extends State<WardrobeScreen> {
       final name = await _showNameDialog(category);
       if (!mounted) return;
 
-      final bytes   = await picked.readAsBytes();
+      final bytes = await picked.readAsBytes();
       final dataUrl = ImageUtils.toDataUrl(bytes, picked.name);
 
       final item = WardrobeItem(
-        category:    category,
+        category: category,
         subcategory: name ?? '',
-        color:       '',
-        imageUrl:    dataUrl,
-        userId:      _guestUserId,
+        color: '',
+        imageUrl: dataUrl,
+        userId: _userId,
       );
-      await _storage.saveWardrobeItem(item, _guestUserId);
+      await _storage.saveWardrobeItem(item, _userId);
       await _loadItems();
     } catch (e) {
       if (mounted) {
@@ -117,105 +156,24 @@ class _WardrobeScreenState extends State<WardrobeScreen> {
   Future<String?> _showCategorySheet() => showModalBottomSheet<String>(
         context: context,
         backgroundColor: Colors.transparent,
+        useRootNavigator: true,
         builder: (_) => _CategorySheet(
           categories: _categories.where((c) => c != 'All').toList(),
         ),
       );
 
-  Future<String?> _showNameDialog(String category) async {
-    final ctrl = TextEditingController();
-    final result = await showDialog<String>(
+  Future<String?> _showNameDialog(String category) {
+    return showDialog<String>(
       context: context,
-      builder: (_) => Dialog(
-        backgroundColor: _surfaceCard,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Name your piece',
-                style: GoogleFonts.notoSerif(
-                  fontSize: 20, fontWeight: FontWeight.w700,
-                  color: _onSurface, letterSpacing: -0.4,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'Give it a name — e.g. "Heritage Trench"',
-                style: GoogleFonts.inter(fontSize: 13, color: _midTone),
-              ),
-              const SizedBox(height: 18),
-              TextField(
-                controller: ctrl,
-                autofocus: true,
-                style: GoogleFonts.inter(color: _onSurface, fontSize: 15),
-                decoration: InputDecoration(
-                  hintText: 'Piece name…',
-                  hintStyle: GoogleFonts.inter(
-                      color: _midTone.withValues(alpha: 0.55)),
-                  filled: true,
-                  fillColor: _surfaceLow,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 14),
-                ),
-              ),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: () => Navigator.pop(context),
-                      child: SizedBox(
-                        height: 46,
-                        child: Center(
-                          child: Text('Skip',
-                              style: GoogleFonts.inter(
-                                  color: _midTone,
-                                  fontWeight: FontWeight.w600)),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: () =>
-                          Navigator.pop(context, ctrl.text.trim()),
-                      child: Container(
-                        height: 46,
-                        decoration: BoxDecoration(
-                          color: _chipActive,
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        alignment: Alignment.center,
-                        child: Text('Save',
-                            style: GoogleFonts.inter(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w700)),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
+      useRootNavigator: true,
+      builder: (_) => const _NameDialog(),
     );
-    ctrl.dispose();
-    return result;
   }
 
   Future<void> _deleteItem(WardrobeItem item) async {
     final confirmed = await showDialog<bool>(
       context: context,
+      useRootNavigator: true,
       builder: (_) => Dialog(
         backgroundColor: _surfaceCard,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
@@ -227,8 +185,10 @@ class _WardrobeScreenState extends State<WardrobeScreen> {
             children: [
               Text('Remove piece',
                   style: GoogleFonts.notoSerif(
-                      fontSize: 20, fontWeight: FontWeight.w700,
-                      color: _onSurface, letterSpacing: -0.4)),
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                      color: _onSurface,
+                      letterSpacing: -0.4)),
               const SizedBox(height: 8),
               Text('Remove this item from your wardrobe?',
                   style: GoogleFonts.inter(
@@ -277,7 +237,7 @@ class _WardrobeScreenState extends State<WardrobeScreen> {
     );
     if (confirmed == true) {
       try {
-        await _storage.deleteWardrobeItem(item.id, _guestUserId);
+        await _storage.deleteWardrobeItem(item.id, _userId);
         await _loadItems();
       } catch (e) {
         if (mounted) {
@@ -300,8 +260,7 @@ class _WardrobeScreenState extends State<WardrobeScreen> {
         slivers: [
           SliverToBoxAdapter(child: _buildHeader()),
           SliverToBoxAdapter(child: _buildCategoryFilter()),
-          if (_items.isNotEmpty)
-            SliverToBoxAdapter(child: _buildAiChip()),
+          if (_items.isNotEmpty) SliverToBoxAdapter(child: _buildAiChip()),
           if (_isLoading)
             const SliverFillRemaining(
               child: Center(child: CircularProgressIndicator()),
@@ -324,7 +283,7 @@ class _WardrobeScreenState extends State<WardrobeScreen> {
 
   Widget _buildHeader() {
     final topPad = MediaQuery.of(context).padding.top;
-    final count  = _items.length;
+    final count = _items.length;
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
@@ -340,10 +299,8 @@ class _WardrobeScreenState extends State<WardrobeScreen> {
           // Overline label
           count > 0
               ? _Overline('$count PIECES',
-                  color: Colors.white,
-                  bg: Colors.white.withValues(alpha: 0.15))
-              : const _Overline('CURATED COLLECTION',
-                  color: Colors.white70),
+                  color: Colors.white, bg: Colors.white.withValues(alpha: 0.15))
+              : const _Overline('CURATED COLLECTION', color: Colors.white70),
           const SizedBox(height: 10),
           // Display headline
           Text(
@@ -354,6 +311,17 @@ class _WardrobeScreenState extends State<WardrobeScreen> {
               color: Colors.white,
               letterSpacing: -0.72,
               height: 1.08,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _subscription.maxWardrobeItems == null
+                ? 'Local-only wardrobe with unlimited saved pieces in this preview.'
+                : 'Local-only wardrobe: ${_items.length}/${_subscription.maxWardrobeItems} pieces saved on this device.',
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              color: Colors.white70,
+              height: 1.4,
             ),
           ),
         ],
@@ -443,10 +411,10 @@ class _WardrobeScreenState extends State<WardrobeScreen> {
 
   Widget _buildGrid() {
     final items = _filtered;
-    final rows  = <Widget>[];
+    final rows = <Widget>[];
     for (int i = 0; i < items.length; i += 2) {
       rows.add(_buildRow(
-        left:  items[i],
+        left: items[i],
         right: i + 1 < items.length ? items[i + 1] : null,
         rowIdx: i ~/ 2,
       ));
@@ -461,10 +429,10 @@ class _WardrobeScreenState extends State<WardrobeScreen> {
       {required WardrobeItem left,
       required WardrobeItem? right,
       required int rowIdx}) {
-    const gap     = 12.0;
+    const gap = 12.0;
     const stagger = 38.0;
-    const hPad    = 20.0;
-    final delay   = Duration(milliseconds: 45 * rowIdx);
+    const hPad = 20.0;
+    final delay = Duration(milliseconds: 45 * rowIdx);
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(hPad, 0, hPad, gap),
@@ -485,8 +453,7 @@ class _WardrobeScreenState extends State<WardrobeScreen> {
               padding: const EdgeInsets.only(top: stagger),
               child: right != null
                   ? _buildCard(right, imageHeight: 168)
-                      .animate(
-                          delay: delay + const Duration(milliseconds: 55))
+                      .animate(delay: delay + const Duration(milliseconds: 55))
                       .fadeIn(duration: 360.ms)
                       .slideY(begin: 0.05, end: 0, curve: Curves.easeOut)
                   : const SizedBox(),
@@ -498,8 +465,8 @@ class _WardrobeScreenState extends State<WardrobeScreen> {
   }
 
   Widget _buildCard(WardrobeItem item, {required double imageHeight}) {
-    final hasImage = item.imageUrl.isNotEmpty &&
-        item.imageUrl.startsWith('data:');
+    final hasImage =
+        item.imageUrl.isNotEmpty && item.imageUrl.startsWith('data:');
     final name = item.subcategory.isNotEmpty
         ? item.subcategory
         : _fallbackName(item.category);
@@ -630,8 +597,8 @@ class _WardrobeScreenState extends State<WardrobeScreen> {
               color: _surfaceLow,
               borderRadius: BorderRadius.circular(22),
             ),
-            child: const Icon(Icons.checkroom_rounded,
-                size: 36, color: _midTone),
+            child:
+                const Icon(Icons.checkroom_rounded, size: 36, color: _midTone),
           ),
           const SizedBox(height: 24),
           Text(
@@ -648,9 +615,10 @@ class _WardrobeScreenState extends State<WardrobeScreen> {
           const SizedBox(height: 8),
           Text(
             isEmpty
-                ? 'Tap + to add your first piece'
-                : 'Add pieces using the + button',
+                ? 'Add your most-worn staples first so future analysis feels grounded in your real closet.'
+                : 'Add pieces using the + button to make recommendations more personal.',
             style: GoogleFonts.inter(fontSize: 14, color: _midTone),
+            textAlign: TextAlign.center,
           ),
         ],
       ),
@@ -660,21 +628,21 @@ class _WardrobeScreenState extends State<WardrobeScreen> {
   // ── Helpers ────────────────────────────────────────────────────────────────
 
   String _fallbackName(String cat) => switch (cat) {
-        'Top'       => 'My Top',
-        'Bottom'    => 'My Bottom',
-        'Dress'     => 'My Dress',
-        'Shoes'     => 'My Shoes',
+        'Top' => 'My Top',
+        'Bottom' => 'My Bottom',
+        'Dress' => 'My Dress',
+        'Shoes' => 'My Shoes',
         'Accessory' => 'My Accessory',
-        _           => 'Wardrobe Piece',
+        _ => 'Wardrobe Piece',
       };
 
   IconData _catIcon(String cat) => switch (cat) {
-        'Top'       => Icons.dry_cleaning_rounded,
-        'Bottom'    => Icons.straighten_rounded,
-        'Dress'     => Icons.accessibility_new_rounded,
-        'Shoes'     => Icons.directions_walk_rounded,
+        'Top' => Icons.dry_cleaning_rounded,
+        'Bottom' => Icons.straighten_rounded,
+        'Dress' => Icons.accessibility_new_rounded,
+        'Shoes' => Icons.directions_walk_rounded,
         'Accessory' => Icons.watch_rounded,
-        _           => Icons.checkroom_rounded,
+        _ => Icons.checkroom_rounded,
       };
 }
 
@@ -685,8 +653,7 @@ class _Overline extends StatelessWidget {
   final Color color;
   final Color? bg;
 
-  const _Overline(this.text,
-      {this.color = _midTone, this.bg});
+  const _Overline(this.text, {this.color = _midTone, this.bg});
 
   @override
   Widget build(BuildContext context) {
@@ -782,8 +749,8 @@ class _CategoryTile extends StatelessWidget {
                 color: _surfaceLow,
                 borderRadius: BorderRadius.circular(13),
               ),
-              child: Icon(_icon(category),
-                  size: 20, color: AppTheme.primaryMain),
+              child:
+                  Icon(_icon(category), size: 20, color: AppTheme.primaryMain),
             ),
             const SizedBox(width: 14),
             Text(
@@ -795,8 +762,7 @@ class _CategoryTile extends StatelessWidget {
               ),
             ),
             const Spacer(),
-            const Icon(Icons.chevron_right_rounded,
-                size: 20, color: _midTone),
+            const Icon(Icons.chevron_right_rounded, size: 20, color: _midTone),
           ],
         ),
       ),
@@ -804,11 +770,127 @@ class _CategoryTile extends StatelessWidget {
   }
 
   IconData _icon(String cat) => switch (cat) {
-        'Top'       => Icons.dry_cleaning_rounded,
-        'Bottom'    => Icons.straighten_rounded,
-        'Dress'     => Icons.accessibility_new_rounded,
-        'Shoes'     => Icons.directions_walk_rounded,
+        'Top' => Icons.dry_cleaning_rounded,
+        'Bottom' => Icons.straighten_rounded,
+        'Dress' => Icons.accessibility_new_rounded,
+        'Shoes' => Icons.directions_walk_rounded,
         'Accessory' => Icons.watch_rounded,
-        _           => Icons.checkroom_rounded,
+        _ => Icons.checkroom_rounded,
       };
+}
+
+// ── Name dialog ────────────────────────────────────────────────────────────
+// Self-contained StatefulWidget so the TextEditingController lifecycle is
+// tied to this widget and disposed cleanly when the dialog closes.
+class _NameDialog extends StatefulWidget {
+  const _NameDialog();
+
+  @override
+  State<_NameDialog> createState() => _NameDialogState();
+}
+
+class _NameDialogState extends State<_NameDialog> {
+  final _ctrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: _surfaceCard,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+      child: SingleChildScrollView(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Name your piece',
+                style: GoogleFonts.notoSerif(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  color: _onSurface,
+                  letterSpacing: -0.4,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Give it a name — e.g. "Heritage Trench"',
+                style: GoogleFonts.inter(fontSize: 13, color: _midTone),
+              ),
+              const SizedBox(height: 18),
+              TextField(
+                controller: _ctrl,
+                autofocus: true,
+                textInputAction: TextInputAction.done,
+                onSubmitted: (v) => Navigator.of(context).pop(v.trim()),
+                style: GoogleFonts.inter(color: _onSurface, fontSize: 15),
+                decoration: InputDecoration(
+                  hintText: 'Piece name…',
+                  hintStyle: GoogleFonts.inter(
+                      color: _midTone.withValues(alpha: 0.55)),
+                  filled: true,
+                  fillColor: _surfaceLow,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => Navigator.of(context).pop(),
+                      child: SizedBox(
+                        height: 46,
+                        child: Center(
+                          child: Text('Skip',
+                              style: GoogleFonts.inter(
+                                  color: _midTone,
+                                  fontWeight: FontWeight.w600)),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () =>
+                          Navigator.of(context).pop(_ctrl.text.trim()),
+                      child: Container(
+                        height: 46,
+                        decoration: BoxDecoration(
+                          color: _chipActive,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        alignment: Alignment.center,
+                        child: Text('Save',
+                            style: GoogleFonts.inter(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700)),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }

@@ -1,112 +1,307 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:styleiq/core/services/app_user_service.dart';
 import 'package:styleiq/core/theme/app_theme.dart';
 import 'package:styleiq/models/notification_settings.dart';
 import 'package:styleiq/services/storage/local_storage_service.dart';
+
+// ── Design tokens ─────────────────────────────────────────────────────────────
+const Color _nsSurface = Color(0xFFFAF9FF);
+const Color _nsSurfaceCard = Color(0xFFFFFFFF);
+const Color _nsOnSurface = Color(0xFF1A1528);
+const Color _nsMidTone = Color(0xFF6B6882);
+// ─────────────────────────────────────────────────────────────────────────────
 
 class NotificationSettingsScreen extends StatefulWidget {
   const NotificationSettingsScreen({super.key});
 
   @override
-  State<NotificationSettingsScreen> createState() => _NotificationSettingsScreenState();
+  State<NotificationSettingsScreen> createState() =>
+      _NotificationSettingsScreenState();
 }
 
-class _NotificationSettingsScreenState extends State<NotificationSettingsScreen> {
-  static const String _userId = 'guest';
+class _NotificationSettingsScreenState
+    extends State<NotificationSettingsScreen> {
   final LocalStorageService _storage = LocalStorageService();
-  NotificationSettings? _settings;
+
+  late NotificationSettings _settings;
+  bool _loading = true;
   bool _saving = false;
 
   @override
   void initState() {
     super.initState();
-    _loadSettings();
+    _settings = NotificationSettings(userId: AppUserService.currentUserId);
+    _load();
   }
 
-  Future<void> _loadSettings() async {
-    final settings = await _storage.getNotificationSettings(_userId);
-    if (mounted) {
-      setState(() => _settings = settings);
+  Future<void> _load() async {
+    try {
+      final s =
+          await _storage.getNotificationSettings(AppUserService.currentUserId);
+      if (mounted) {
+        setState(() {
+          _settings = s;
+          _loading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
     }
   }
 
-  Future<void> _updateSetting(NotificationSettings updated) async {
-    setState(() => _saving = true);
-    await _storage.saveNotificationSettings(updated);
-    if (mounted) {
-      setState(() {
-        _settings = updated;
-        _saving = false;
-      });
+  Future<void> _persist(NotificationSettings updated) async {
+    setState(() {
+      _settings = updated;
+      _saving = true;
+    });
+    try {
+      await _storage.saveNotificationSettings(updated);
+    } finally {
+      if (mounted) setState(() => _saving = false);
     }
+  }
+
+  void _toggle(NotificationSettings Function(NotificationSettings) fn) {
+    _persist(fn(_settings));
   }
 
   @override
   Widget build(BuildContext context) {
-    final settings = _settings;
     return Scaffold(
-      appBar: AppBar(title: const Text('Notification Settings')),
-      backgroundColor: AppTheme.scaffoldBg,
-      body: settings == null
-          ? const Center(child: CircularProgressIndicator())
-          : Stack(
-              children: [
-                ListView(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
+      backgroundColor: _nsSurface,
+      body: CustomScrollView(
+        slivers: [
+          _buildAppBar(context),
+          if (_loading)
+            const SliverFillRemaining(
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    SwitchListTile(
-                      title: const Text('Push Notifications'),
-                      value: settings.pushNotifications,
-                      onChanged: (v) => _updateSetting(settings.copyWith(pushNotifications: v)),
+                    _buildSection(
+                      title: 'Delivery',
+                      icon: Icons.send_rounded,
+                      color: AppTheme.primaryMain,
+                      tiles: [
+                        _ToggleTile(
+                          label: 'Push notifications',
+                          subtitle: 'Alerts directly on your device',
+                          value: _settings.pushNotifications,
+                          onChanged: (v) =>
+                              _toggle((s) => s.copyWith(pushNotifications: v)),
+                        ),
+                        _ToggleTile(
+                          label: 'Email notifications',
+                          subtitle: 'Updates sent to your inbox',
+                          value: _settings.emailNotifications,
+                          showDivider: false,
+                          onChanged: (v) =>
+                              _toggle((s) => s.copyWith(emailNotifications: v)),
+                        ),
+                      ],
                     ),
-                    SwitchListTile(
-                      title: const Text('Email Notifications'),
-                      value: settings.emailNotifications,
-                      onChanged: (v) => _updateSetting(settings.copyWith(emailNotifications: v)),
+                    const SizedBox(height: 24),
+                    _buildSection(
+                      title: 'Content',
+                      icon: Icons.article_rounded,
+                      color: AppTheme.accentMain,
+                      tiles: [
+                        _ToggleTile(
+                          label: 'Daily style tips',
+                          subtitle: 'One actionable tip every morning',
+                          value: _settings.dailyStyleTips,
+                          onChanged: (v) =>
+                              _toggle((s) => s.copyWith(dailyStyleTips: v)),
+                        ),
+                        _ToggleTile(
+                          label: 'Weekly digest',
+                          subtitle: 'Your style highlights from the week',
+                          value: _settings.weeklyDigest,
+                          onChanged: (v) =>
+                              _toggle((s) => s.copyWith(weeklyDigest: v)),
+                        ),
+                        _ToggleTile(
+                          label: 'New features',
+                          subtitle: "Be the first to know what's new",
+                          value: _settings.newFeatures,
+                          onChanged: (v) =>
+                              _toggle((s) => s.copyWith(newFeatures: v)),
+                        ),
+                        _ToggleTile(
+                          label: 'Cultural reminders',
+                          subtitle:
+                              'Upcoming festivals and dress code heads-ups',
+                          value: _settings.culturalReminders,
+                          showDivider: false,
+                          onChanged: (v) =>
+                              _toggle((s) => s.copyWith(culturalReminders: v)),
+                        ),
+                      ],
                     ),
-                    const Divider(),
-                    const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      child: Text('Interest Updates', style: TextStyle(fontWeight: FontWeight.bold)),
-                    ),
-                    SwitchListTile(
-                      title: const Text('Daily Style Tips'),
-                      value: settings.dailyStyleTips,
-                      onChanged: (v) => _updateSetting(settings.copyWith(dailyStyleTips: v)),
-                    ),
-                    SwitchListTile(
-                      title: const Text('Weekly Digest'),
-                      value: settings.weeklyDigest,
-                      onChanged: (v) => _updateSetting(settings.copyWith(weeklyDigest: v)),
-                    ),
-                    SwitchListTile(
-                      title: const Text('New Features'),
-                      value: settings.newFeatures,
-                      onChanged: (v) => _updateSetting(settings.copyWith(newFeatures: v)),
-                    ),
-                    SwitchListTile(
-                      title: const Text('Cultural Reminders'),
-                      value: settings.culturalReminders,
-                      onChanged: (v) => _updateSetting(settings.copyWith(culturalReminders: v)),
-                    ),
-                    const SizedBox(height: 16),
-                    const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 16),
-                      child: Text(
-                        'Your notification settings are stored locally. Enable these alerts to stay up to date on style guidance and community activity.',
+                    const SizedBox(height: 32),
+                    Center(
+                      child: AnimatedOpacity(
+                        opacity: _saving ? 1.0 : 0.0,
+                        duration: const Duration(milliseconds: 300),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                            const SizedBox(width: 8),
+                            Text('Saving…',
+                                style: GoogleFonts.inter(
+                                    color: _nsMidTone, fontSize: 13)),
+                          ],
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 90),
                   ],
                 ),
-                if (_saving)
-                  const Positioned(
-                    left: 0,
-                    right: 0,
-                    bottom: 16,
-                    child: Center(child: CircularProgressIndicator()),
-                  ),
-              ],
+              ),
             ),
+        ],
+      ),
+    );
+  }
+
+  SliverAppBar _buildAppBar(BuildContext context) {
+    final topPad = MediaQuery.of(context).padding.top;
+    return SliverAppBar(
+      pinned: true,
+      expandedHeight: 112,
+      backgroundColor: const Color(0xFF2D1B6B),
+      surfaceTintColor: Colors.transparent,
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back_ios_new_rounded,
+            color: Colors.white, size: 20),
+        onPressed: () => Navigator.of(context).pop(),
+      ),
+      flexibleSpace: FlexibleSpaceBar(
+        collapseMode: CollapseMode.pin,
+        background: Container(
+          color: const Color(0xFF2D1B6B),
+          padding: EdgeInsets.fromLTRB(20, topPad + 56, 20, 16),
+          alignment: Alignment.bottomLeft,
+          child: Text(
+            'Notifications',
+            style: GoogleFonts.notoSerif(
+              fontSize: 28,
+              fontWeight: FontWeight.w700,
+              color: Colors.white,
+              letterSpacing: -0.5,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSection({
+    required String title,
+    required IconData icon,
+    required Color color,
+    required List<Widget> tiles,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              width: 30,
+              height: 30,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(icon, color: color, size: 16),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              title,
+              style: GoogleFonts.inter(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: _nsOnSurface,
+                letterSpacing: 0.2,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Container(
+          decoration: BoxDecoration(
+            color: _nsSurfaceCard,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Column(children: tiles),
+        ),
+      ],
+    ).animate().fadeIn(duration: 350.ms).slideY(begin: 0.06, end: 0);
+  }
+}
+
+// ── Reusable toggle tile ──────────────────────────────────────────────────────
+
+class _ToggleTile extends StatelessWidget {
+  final String label;
+  final String subtitle;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+  final bool showDivider;
+
+  const _ToggleTile({
+    required this.label,
+    required this.subtitle,
+    required this.value,
+    required this.onChanged,
+    this.showDivider = true,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        SwitchListTile.adaptive(
+          value: value,
+          onChanged: onChanged,
+          activeThumbColor: AppTheme.primaryMain,
+          activeTrackColor: AppTheme.primaryMain.withValues(alpha: 0.4),
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 18, vertical: 4),
+          title: Text(
+            label,
+            style: GoogleFonts.inter(
+                fontSize: 14, fontWeight: FontWeight.w600, color: _nsOnSurface),
+          ),
+          subtitle: Text(
+            subtitle,
+            style:
+                GoogleFonts.inter(fontSize: 12, color: _nsMidTone, height: 1.4),
+          ),
+        ),
+        if (showDivider)
+          const Divider(
+              height: 1, indent: 18, endIndent: 18, color: Color(0xFFF0EFF9)),
+      ],
     );
   }
 }

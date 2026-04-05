@@ -1,7 +1,5 @@
-# Uncomment this line to define a global platform for your project
 platform :ios, '16.0'
 
-# CocoaPods analytics sends network stats synchronously affecting flutter build latency.
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
 
 project 'Runner', {
@@ -37,25 +35,24 @@ target 'Runner' do
 end
 
 post_install do |installer|
+  # ── Apply to every pod target ─────────────────────────────────────────────
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
 
     target.build_configurations.each do |config|
-      # Silence all third-party pod warnings (firebase, share_plus, etc.)
+      # Suppress all third-party pod warnings
       config.build_settings['WARNING_CFLAGS'] = '-w'
       config.build_settings['SWIFT_SUPPRESS_WARNINGS'] = 'YES'
-      # Fix: RecaptchaInterop uses double-quoted includes in framework headers
+      # Fix: FirebaseAppCheckInterop uses double-quoted includes in headers
       config.build_settings['CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER'] = 'NO'
 
-      # Raise any pod's minimum deployment target to 16.0
+      # Raise minimum deployment target to 16.0 for all pods
       min_target = config.build_settings['IPHONEOS_DEPLOYMENT_TARGET']
       if min_target.to_f < 16.0
         config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '16.0'
       end
 
-      # Enable the specific permissions needed by permission_handler.
-      # Without these macros the permission is stripped from the binary
-      # and never appears in iOS Settings.
+      # Enable permissions needed by permission_handler
       config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= [
         '$(inherited)',
         'PERMISSION_CAMERA=1',
@@ -63,20 +60,19 @@ post_install do |installer|
         'PERMISSION_PHOTOS_ADD_ONLY=1',
       ]
 
-      # Fix: 0xe8008014 invalid signature on objective_c.framework (and any
-      # other XCFramework slices) when deploying to a physical device.
-      # Disable pod-level code signing so Xcode re-signs every embedded
-      # framework with the active provisioning profile during the final
-      # "Embed & Sign" step.
-      config.build_settings['CODE_SIGNING_ALLOWED'] = 'NO'
+      # No bitcode — required for Xcode 16+ / iOS 26
+      config.build_settings['ENABLE_BITCODE'] = 'NO'
+
+      # Framework signing: use REQUIRED=NO so Xcode still re-signs during
+      # "Embed & Sign", which is needed for LLDB to attach on a real device.
+      config.build_settings['CODE_SIGNING_REQUIRED'] = 'NO'
+      config.build_settings['CODE_SIGN_IDENTITY'] = ''
     end
   end
 
-  # Re-enable signing for the main Runner target — it must be signed.
-  installer.pods_project.targets.each do |target|
-    next unless target.name == 'Runner'
-    target.build_configurations.each do |config|
-      config.build_settings.delete('CODE_SIGNING_ALLOWED')
-    end
+  # ── Also apply to the Pods project itself (catches xcconfig-level warnings) ─
+  installer.pods_project.build_configurations.each do |config|
+    config.build_settings['CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER'] = 'NO'
+    config.build_settings['ENABLE_BITCODE'] = 'NO'
   end
 end

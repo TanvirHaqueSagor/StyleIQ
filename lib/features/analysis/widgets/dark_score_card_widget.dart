@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:styleiq/core/utils/image_utils.dart';
 import 'package:styleiq/features/analysis/models/style_analysis.dart';
 import 'package:styleiq/features/analysis/widgets/dark_analysis_theme.dart';
 import 'package:styleiq/features/analysis/widgets/painters/analysis_painters.dart';
@@ -35,6 +36,9 @@ class _DarkScoreCardWidgetState extends State<DarkScoreCardWidget>
   Uint8List? _reelBytes;
   bool _reelGenerating = false;
   double _reelProgress = 0;
+  bool _easyMode = true;
+  bool _showAfter = true;
+  int _selectedMockupIndex = 0;
 
   // ── Style reel generation ─────────────────────────────────────────────────────
 
@@ -80,23 +84,52 @@ class _DarkScoreCardWidgetState extends State<DarkScoreCardWidget>
           mimeType: 'image/gif',
         ),
       ],
-      text:
-          'My StyleIQ Score: ${widget.analysis.overallScore.round()}/100 '
+      text: 'My StyleIQ Score: ${widget.analysis.overallScore.round()}/100 '
           '${widget.analysis.letterGrade} — Analyzed by StyleIQ AI',
     );
   }
 
   // ── Computed helpers ─────────────────────────────────────────────────────────
 
-  int get _totalImpact => widget.analysis.suggestions.fold(0, (sum, s) {
-        final match = RegExp(r'[+-]?\d+').firstMatch(s.scoreImpact);
-        if (match == null) return sum;
-        final val = int.tryParse(match.group(0) ?? '0') ?? 0;
-        return sum + (s.scoreImpact.trimLeft().startsWith('-') ? -val : val);
-      });
+  // Computed once at initState time — never recalculated on rebuild.
+  late final int _totalImpact;
+  late final double _improvedScore;
+  late final List<String> _previewLabels;
 
-  double get _improvedScore =>
-      (widget.analysis.overallScore + _totalImpact).clamp(0, 100);
+  String get _easySummaryText {
+    final summary = widget.analysis.easySummary?.trim();
+    if (summary != null && summary.isNotEmpty) return summary;
+    if (widget.analysis.suggestions.isEmpty) {
+      return 'This outfit already feels coherent. Keep the strong pieces and repeat what is working.';
+    }
+    return 'Your outfit has a solid base. A few targeted changes could make it look more intentional and easier to read.';
+  }
+
+  String get _improvedNarrativeText {
+    final narrative = widget.analysis.improvedLookNarrative?.trim();
+    if (narrative != null && narrative.isNotEmpty) return narrative;
+    return 'With the suggested changes, this look would feel cleaner, more balanced, and easier to understand at a glance.';
+  }
+
+  List<GeneratedMockup> get _mockups {
+    if (widget.analysis.generatedMockups.isNotEmpty) {
+      return widget.analysis.generatedMockups;
+    }
+    return [
+      GeneratedMockup(
+        id: 'fallback',
+        label: 'Recommended Look',
+        imageUrl: widget.analysis.imageUrl ?? '',
+        appliedChanges: _previewLabels,
+        whyItWorks: _improvedNarrativeText,
+        provenance: 'AI-directed preview based on your uploaded outfit photo.',
+        isPrimary: true,
+      ),
+    ];
+  }
+
+  GeneratedMockup get _currentMockup =>
+      _mockups[_selectedMockupIndex.clamp(0, _mockups.length - 1)];
 
   LinearGradient _gradeGradient(String grade) {
     if (grade == 'S') {
@@ -141,6 +174,27 @@ class _DarkScoreCardWidgetState extends State<DarkScoreCardWidget>
   void initState() {
     super.initState();
 
+    // Compute expensive values once — reused on every rebuild.
+    _totalImpact = widget.analysis.suggestions.fold(0, (sum, s) {
+      final match = RegExp(r'[+-]?\d+').firstMatch(s.scoreImpact);
+      if (match == null) return sum;
+      final val = int.tryParse(match.group(0) ?? '0') ?? 0;
+      return sum + (s.scoreImpact.trimLeft().startsWith('-') ? -val : val);
+    });
+    _improvedScore =
+        (widget.analysis.overallScore + _totalImpact).clamp(0, 100).toDouble();
+    final quickWins = widget.analysis.quickWins
+        .where((e) => e.trim().isNotEmpty)
+        .take(3)
+        .toList();
+    _previewLabels = quickWins.isNotEmpty
+        ? quickWins
+        : widget.analysis.suggestions
+            .map((s) => s.change.trim())
+            .where((e) => e.isNotEmpty)
+            .take(3)
+            .toList();
+
     _scoreController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 2200),
@@ -157,7 +211,9 @@ class _DarkScoreCardWidgetState extends State<DarkScoreCardWidget>
     );
     Future.delayed(
       const Duration(milliseconds: 700),
-      () { if (mounted) _radarController.forward(); },
+      () {
+        if (mounted) _radarController.forward();
+      },
     );
 
     _spinController = AnimationController(
@@ -191,11 +247,19 @@ class _DarkScoreCardWidgetState extends State<DarkScoreCardWidget>
             children: [
               _buildScoreReveal(a),
               const SizedBox(height: 48),
-              _buildVideoSection(),
+              _buildInteractionControls(),
               const SizedBox(height: 48),
-              _buildRadarSection(a),
+              _buildEasyReadSection(a),
               const SizedBox(height: 48),
-              _buildDimensionsSection(a),
+              _buildVisualPreviewSection(a),
+              if (!_easyMode) ...[
+                const SizedBox(height: 48),
+                _buildVideoSection(),
+                const SizedBox(height: 48),
+                _buildRadarSection(a),
+                const SizedBox(height: 48),
+                _buildDimensionsSection(a),
+              ],
               const SizedBox(height: 48),
               _buildComparisonSection(a),
               const SizedBox(height: 48),
@@ -231,8 +295,7 @@ class _DarkScoreCardWidgetState extends State<DarkScoreCardWidget>
         children: [
           // StyleIQ Analysis badge
           Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
             decoration: BoxDecoration(
               color: const Color(0xFFd4a853).withValues(alpha: 0.15),
               border: Border.all(
@@ -243,8 +306,7 @@ class _DarkScoreCardWidgetState extends State<DarkScoreCardWidget>
             child: const Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.star_rounded,
-                    size: 14, color: Color(0xFFd4a853)),
+                Icon(Icons.star_rounded, size: 14, color: Color(0xFFd4a853)),
                 SizedBox(width: 6),
                 Text(
                   'STYLEIQ ANALYSIS',
@@ -271,13 +333,15 @@ class _DarkScoreCardWidgetState extends State<DarkScoreCardWidget>
             child: Stack(
               alignment: Alignment.center,
               children: [
-                // Spinning glow + border
+                // Spinning glow + border — isolated so only the border repaints
                 Positioned.fill(
-                  child: AnimatedBuilder(
-                    animation: _spinController,
-                    builder: (_, __) => CustomPaint(
-                      painter: SpinningBorderPainter(
-                        angle: _spinController.value * 2 * pi,
+                  child: RepaintBoundary(
+                    child: AnimatedBuilder(
+                      animation: _spinController,
+                      builder: (_, __) => CustomPaint(
+                        painter: SpinningBorderPainter(
+                          angle: _spinController.value * 2 * pi,
+                        ),
                       ),
                     ),
                   ),
@@ -292,16 +356,15 @@ class _DarkScoreCardWidgetState extends State<DarkScoreCardWidget>
                         ? Image.memory(
                             widget.imageBytes!,
                             fit: BoxFit.cover,
+                            cacheWidth: 400,
+                            cacheHeight: 520,
                           )
                         : _buildPhotoPlaceholder(),
                   ),
                 ),
               ],
             ),
-          )
-              .animate()
-              .fadeIn(delay: 400.ms, duration: 1000.ms)
-              .scale(
+          ).animate().fadeIn(delay: 400.ms, duration: 1000.ms).scale(
                 begin: const Offset(0.85, 0.85),
                 curve: const Cubic(0.16, 1, 0.3, 1),
                 duration: 1000.ms,
@@ -323,8 +386,8 @@ class _DarkScoreCardWidgetState extends State<DarkScoreCardWidget>
         ),
       ),
       child: const Center(
-        child: Icon(Icons.person_outline_rounded,
-            size: 80, color: Colors.white12),
+        child:
+            Icon(Icons.person_outline_rounded, size: 80, color: Colors.white12),
       ),
     );
   }
@@ -466,8 +529,7 @@ class _DarkScoreCardWidgetState extends State<DarkScoreCardWidget>
         if (a.aestheticCategory != null) ...[
           const SizedBox(height: 14),
           Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
             decoration: BoxDecoration(
               color: DarkAnalysisTheme.violet.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(100),
@@ -484,15 +546,412 @@ class _DarkScoreCardWidgetState extends State<DarkScoreCardWidget>
                 color: DarkAnalysisTheme.violet,
               ),
             ),
-          )
-              .animate()
-              .fadeIn(delay: 1000.ms),
+          ).animate().fadeIn(delay: 1000.ms),
         ],
       ],
     )
         .animate()
         .fadeIn(delay: 1000.ms, duration: 800.ms)
         .slideY(begin: 0.1, end: 0);
+  }
+
+  Widget _buildEasyReadSection(StyleAnalysis a) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionHeader('Easy Read'),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: DarkAnalysisTheme.surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: DarkAnalysisTheme.border),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'What this means',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.1,
+                  color: DarkAnalysisTheme.gold,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                _easySummaryText,
+                style: const TextStyle(
+                  fontSize: 16,
+                  height: 1.55,
+                  color: DarkAnalysisTheme.textPrimary,
+                ),
+              ),
+              if (a.quickWins.isNotEmpty) ...[
+                const SizedBox(height: 18),
+                const Text(
+                  'Quick wins',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.1,
+                    color: DarkAnalysisTheme.textMuted,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                ...a.quickWins.take(3).map(
+                      (win) => Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('• ',
+                                style: TextStyle(
+                                    color: DarkAnalysisTheme.teal,
+                                    fontSize: 14)),
+                            Expanded(
+                              child: Text(
+                                win,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  color: DarkAnalysisTheme.textSecondary,
+                                  height: 1.45,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.1, end: 0);
+  }
+
+  Widget _buildInteractionControls() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionHeader('Review Mode'),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              child: _ModeButton(
+                label: 'Easy',
+                selected: _easyMode,
+                onTap: () => setState(() => _easyMode = true),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _ModeButton(
+                label: 'Expert',
+                selected: !_easyMode,
+                onTap: () => setState(() => _easyMode = false),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: DarkAnalysisTheme.surface,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: DarkAnalysisTheme.border),
+          ),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.account_tree_outlined,
+                color: DarkAnalysisTheme.gold,
+                size: 18,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  _easyMode
+                      ? 'Focus on the clearest next action, the best recommendation variant, and what to do next.'
+                      : 'Show the recommendation variants, score logic, and detailed breakdown together.',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    height: 1.4,
+                    color: DarkAnalysisTheme.textSecondary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildVisualPreviewSection(StyleAnalysis a) {
+    final labels = _currentMockup.appliedChanges.isNotEmpty
+        ? _currentMockup.appliedChanges
+        : _previewLabels;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionHeader('Recommended Look Preview'),
+        const SizedBox(height: 8),
+        const Text(
+          'This is a visual guide built from your current photo, not an AI-generated new image.',
+          style: TextStyle(
+            fontSize: 12,
+            color: DarkAnalysisTheme.textMuted,
+            height: 1.4,
+          ),
+        ),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: DarkAnalysisTheme.surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: DarkAnalysisTheme.border),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  _PreviewToggleChip(
+                    label: 'Before',
+                    selected: !_showAfter,
+                    onTap: () => setState(() => _showAfter = false),
+                  ),
+                  const SizedBox(width: 8),
+                  _PreviewToggleChip(
+                    label: 'After',
+                    selected: _showAfter,
+                    onTap: () => setState(() => _showAfter = true),
+                  ),
+                  const Spacer(),
+                  Text(
+                    _currentMockup.label,
+                    style: const TextStyle(
+                      color: DarkAnalysisTheme.textPrimary,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: SizedBox(
+                  height: 280,
+                  width: double.infinity,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      if ((_showAfter
+                                  ? _currentMockup.imageUrl
+                                  : widget.analysis.imageUrl) !=
+                              null &&
+                          (_showAfter
+                                  ? _currentMockup.imageUrl
+                                  : widget.analysis.imageUrl)!
+                              .startsWith('data:'))
+                        Image.memory(
+                          ImageUtils.dataUrlToBytes(
+                            _showAfter
+                                ? _currentMockup.imageUrl
+                                : widget.analysis.imageUrl!,
+                          ),
+                          fit: BoxFit.cover,
+                        )
+                      else if (widget.imageBytes != null)
+                        Image.memory(widget.imageBytes!, fit: BoxFit.cover)
+                      else
+                        _buildPhotoPlaceholder(),
+                      Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.black.withValues(alpha: 0.18),
+                              Colors.black.withValues(alpha: 0.55),
+                            ],
+                          ),
+                        ),
+                      ),
+                      if (_showAfter)
+                        Positioned(
+                          left: 12,
+                          right: 12,
+                          top: 12,
+                          child: Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: labels.asMap().entries.map((entry) {
+                              return Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 7,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withValues(alpha: 0.48),
+                                  borderRadius: BorderRadius.circular(999),
+                                  border: Border.all(
+                                    color: DarkAnalysisTheme.gold
+                                        .withValues(alpha: 0.45),
+                                  ),
+                                ),
+                                child: Text(
+                                  entry.value,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                      Positioned(
+                        left: 16,
+                        right: 16,
+                        bottom: 16,
+                        child: Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.44),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'After the update',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  letterSpacing: 1.2,
+                                  fontWeight: FontWeight.w700,
+                                  color: DarkAnalysisTheme.gold,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                _showAfter
+                                    ? _currentMockup.whyItWorks
+                                    : 'Your original uploaded outfit before any suggested changes.',
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  height: 1.45,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+              if (_mockups.length > 1) ...[
+                SizedBox(
+                  height: 42,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: _mockups.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 8),
+                    itemBuilder: (_, index) {
+                      final mockup = _mockups[index];
+                      final selected = index == _selectedMockupIndex;
+                      return GestureDetector(
+                        onTap: () => setState(() {
+                          _selectedMockupIndex = index;
+                          _showAfter = true;
+                        }),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
+                          decoration: BoxDecoration(
+                            color: selected
+                                ? DarkAnalysisTheme.gold.withValues(alpha: 0.14)
+                                : DarkAnalysisTheme.surfaceElevated,
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(
+                              color: selected
+                                  ? DarkAnalysisTheme.gold
+                                  : DarkAnalysisTheme.border,
+                            ),
+                          ),
+                          child: Text(
+                            mockup.label,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: selected
+                                  ? DarkAnalysisTheme.gold
+                                  : DarkAnalysisTheme.textSecondary,
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 14),
+              ],
+              Row(
+                children: [
+                  Expanded(
+                    child: _PreviewStat(
+                      label: 'Current',
+                      value: a.overallScore.toStringAsFixed(0),
+                      color: DarkAnalysisTheme.rose,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _PreviewStat(
+                      label: 'Potential',
+                      value: _improvedScore.toStringAsFixed(0),
+                      color: DarkAnalysisTheme.teal,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: DarkAnalysisTheme.surfaceElevated,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: DarkAnalysisTheme.border),
+                ),
+                child: Text(
+                  'Provenance: ${_currentMockup.provenance}',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: DarkAnalysisTheme.textMuted,
+                    height: 1.4,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.1, end: 0);
   }
 
   // ──────────────────────────────────────────────────────────────────────────────
@@ -513,10 +972,7 @@ class _DarkScoreCardWidgetState extends State<DarkScoreCardWidget>
         // Keep GIF export below the player
         _buildReelExportCard(),
       ],
-    )
-        .animate()
-        .fadeIn(duration: 400.ms)
-        .slideY(begin: 0.1, end: 0);
+    ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.1, end: 0);
   }
 
   Widget _buildReelExportCard() {
@@ -529,29 +985,36 @@ class _DarkScoreCardWidgetState extends State<DarkScoreCardWidget>
       ),
       child: Row(
         children: [
-          const Icon(Icons.gif_box_rounded, color: DarkAnalysisTheme.gold, size: 20),
+          const Icon(Icons.gif_box_rounded,
+              color: DarkAnalysisTheme.gold, size: 20),
           const SizedBox(width: 10),
           const Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('Export as Animated GIF',
-                    style: TextStyle(color: DarkAnalysisTheme.textPrimary, fontSize: 13, fontWeight: FontWeight.w600)),
+                    style: TextStyle(
+                        color: DarkAnalysisTheme.textPrimary,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600)),
                 Text('Generate a shareable GIF of your score card',
-                    style: TextStyle(color: DarkAnalysisTheme.textSecondary, fontSize: 11)),
+                    style: TextStyle(
+                        color: DarkAnalysisTheme.textSecondary, fontSize: 11)),
               ],
             ),
           ),
           if (_reelBytes != null)
             IconButton(
               onPressed: _shareReel,
-              icon: const Icon(Icons.share_rounded, color: DarkAnalysisTheme.gold, size: 20),
+              icon: const Icon(Icons.share_rounded,
+                  color: DarkAnalysisTheme.gold, size: 20),
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(),
             )
           else if (_reelGenerating)
             SizedBox(
-              width: 20, height: 20,
+              width: 20,
+              height: 20,
               child: CircularProgressIndicator(
                 value: _reelProgress,
                 strokeWidth: 2,
@@ -565,7 +1028,8 @@ class _DarkScoreCardWidgetState extends State<DarkScoreCardWidget>
                 foregroundColor: DarkAnalysisTheme.gold,
                 padding: const EdgeInsets.symmetric(horizontal: 8),
               ),
-              child: const Text('Generate', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+              child: const Text('Generate',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
             ),
         ],
       ),
@@ -608,7 +1072,11 @@ class _DarkScoreCardWidgetState extends State<DarkScoreCardWidget>
                   painter: DarkRadarChartPainter(
                     values: values,
                     labels: const [
-                      'Color', 'Fit', 'Occasion', 'Trend', 'Cohesion'
+                      'Color',
+                      'Fit',
+                      'Occasion',
+                      'Trend',
+                      'Cohesion'
                     ],
                     accentColor: DarkAnalysisTheme.gold,
                     animationValue: CurvedAnimation(
@@ -622,10 +1090,7 @@ class _DarkScoreCardWidgetState extends State<DarkScoreCardWidget>
           ),
         ),
       ],
-    )
-        .animate()
-        .fadeIn(duration: 400.ms)
-        .slideY(begin: 0.1, end: 0);
+    ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.1, end: 0);
   }
 
   // ──────────────────────────────────────────────────────────────────────────────
@@ -639,14 +1104,15 @@ class _DarkScoreCardWidgetState extends State<DarkScoreCardWidget>
       children: [
         _sectionHeader('Score Breakdown'),
         const SizedBox(height: 16),
-        ...dims.asMap().entries.map((e) =>
-            _buildDimensionCard(e.key, e.value.key, e.value.value)),
+        ...dims
+            .asMap()
+            .entries
+            .map((e) => _buildDimensionCard(e.key, e.value.key, e.value.value)),
       ],
     );
   }
 
-  Widget _buildDimensionCard(
-      int index, String name, DimensionScore ds) {
+  Widget _buildDimensionCard(int index, String name, DimensionScore ds) {
     final color = _dimColors[index];
     final emoji = _dimEmojis[index];
     final weight = _dimWeights[index];
@@ -694,8 +1160,8 @@ class _DarkScoreCardWidgetState extends State<DarkScoreCardWidget>
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Center(
-                        child: Text(emoji,
-                            style: const TextStyle(fontSize: 16)),
+                        child:
+                            Text(emoji, style: const TextStyle(fontSize: 16)),
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -831,21 +1297,16 @@ class _DarkScoreCardWidgetState extends State<DarkScoreCardWidget>
                 final dimScore = e.value.value.score;
                 final impScore =
                     (dimScore + _totalImpact / 5).clamp(0.0, 100.0);
-                return _buildComparisonRow(
-                    e.value.key, dimScore, impScore);
+                return _buildComparisonRow(e.value.key, dimScore, impScore);
               }),
             ],
           ),
         ),
       ],
-    )
-        .animate()
-        .fadeIn(duration: 400.ms)
-        .slideY(begin: 0.1, end: 0);
+    ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.1, end: 0);
   }
 
-  Widget _buildComparisonRow(
-      String name, double current, double improved) {
+  Widget _buildComparisonRow(String name, double current, double improved) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
       child: Column(
@@ -892,8 +1353,8 @@ class _DarkScoreCardWidgetState extends State<DarkScoreCardWidget>
                 builder: (_, v, __) => LinearProgressIndicator(
                   value: v,
                   backgroundColor: const Color(0xFF252545),
-                  valueColor: const AlwaysStoppedAnimation(
-                      DarkAnalysisTheme.teal),
+                  valueColor:
+                      const AlwaysStoppedAnimation(DarkAnalysisTheme.teal),
                 ),
               ),
             ),
@@ -915,54 +1376,53 @@ class _DarkScoreCardWidgetState extends State<DarkScoreCardWidget>
         _sectionHeader("What's Working"),
         const SizedBox(height: 16),
         ...a.strengths.asMap().entries.map(
-          (e) => Container(
-            margin: const EdgeInsets.only(bottom: 10),
-            padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-              color: DarkAnalysisTheme.surface,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: DarkAnalysisTheme.border),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        DarkAnalysisTheme.teal.withValues(alpha: 0.15),
-                        DarkAnalysisTheme.teal.withValues(alpha: 0.05),
-                      ],
-                    ),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Center(
-                    child: Text('✦',
-                        style: TextStyle(
-                            fontSize: 13,
-                            color: DarkAnalysisTheme.teal)),
-                  ),
+              (e) => Container(
+                margin: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  color: DarkAnalysisTheme.surface,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: DarkAnalysisTheme.border),
                 ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Text(
-                    e.value,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      color: DarkAnalysisTheme.textPrimary,
-                      height: 1.55,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            DarkAnalysisTheme.teal.withValues(alpha: 0.15),
+                            DarkAnalysisTheme.teal.withValues(alpha: 0.05),
+                          ],
+                        ),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Center(
+                        child: Text('✦',
+                            style: TextStyle(
+                                fontSize: 13, color: DarkAnalysisTheme.teal)),
+                      ),
                     ),
-                  ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Text(
+                        e.value,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: DarkAnalysisTheme.textPrimary,
+                          height: 1.55,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              )
+                  .animate(delay: Duration(milliseconds: 70 * e.key))
+                  .fadeIn(duration: 400.ms)
+                  .slideX(begin: -0.08, end: 0),
             ),
-          )
-              .animate(delay: Duration(milliseconds: 70 * e.key))
-              .fadeIn(duration: 400.ms)
-              .slideX(begin: -0.08, end: 0),
-        ),
       ],
     );
   }
@@ -978,7 +1438,9 @@ class _DarkScoreCardWidgetState extends State<DarkScoreCardWidget>
       children: [
         _sectionHeader('Level Up'),
         const SizedBox(height: 16),
-        ...a.suggestions.asMap().entries
+        ...a.suggestions
+            .asMap()
+            .entries
             .map((e) => _buildSuggestionCard(e.key, e.value)),
       ],
     );
@@ -996,7 +1458,15 @@ class _DarkScoreCardWidgetState extends State<DarkScoreCardWidget>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Top: change + impact badge
+          Text(
+            'DO THIS',
+            style: GoogleFonts.jetBrainsMono(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: DarkAnalysisTheme.gold,
+            ),
+          ),
+          const SizedBox(height: 8),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -1013,8 +1483,8 @@ class _DarkScoreCardWidgetState extends State<DarkScoreCardWidget>
               ),
               const SizedBox(width: 8),
               Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 10, vertical: 4),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
                   color: DarkAnalysisTheme.teal.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(100),
@@ -1031,7 +1501,16 @@ class _DarkScoreCardWidgetState extends State<DarkScoreCardWidget>
             ],
           ),
           const SizedBox(height: 10),
-          // Reason
+          const Text(
+            'WHY IT HELPS',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.0,
+              color: DarkAnalysisTheme.textMuted,
+            ),
+          ),
+          const SizedBox(height: 6),
           Text(
             s.reason,
             style: const TextStyle(
@@ -1133,10 +1612,7 @@ class _DarkScoreCardWidgetState extends State<DarkScoreCardWidget>
           ),
         ],
       ),
-    )
-        .animate()
-        .fadeIn(duration: 400.ms)
-        .slideY(begin: 0.08, end: 0);
+    ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.08, end: 0);
   }
 
   // ──────────────────────────────────────────────────────────────────────────────
@@ -1153,28 +1629,32 @@ class _DarkScoreCardWidgetState extends State<DarkScoreCardWidget>
         Wrap(
           spacing: 8,
           runSpacing: 8,
-          children: a.detectedItems.asMap().entries.map(
-            (e) => Container(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                color: DarkAnalysisTheme.surfaceElevated,
-                borderRadius: BorderRadius.circular(100),
-                border: Border.all(color: DarkAnalysisTheme.border),
-              ),
-              child: Text(
-                e.value,
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color: DarkAnalysisTheme.textSecondary,
-                ),
-              ),
-            )
-                .animate(delay: Duration(milliseconds: 80 * e.key))
-                .scale(begin: const Offset(0.8, 0.8))
-                .fadeIn(duration: 300.ms),
-          ).toList(),
+          children: a.detectedItems
+              .asMap()
+              .entries
+              .map(
+                (e) => Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: DarkAnalysisTheme.surfaceElevated,
+                    borderRadius: BorderRadius.circular(100),
+                    border: Border.all(color: DarkAnalysisTheme.border),
+                  ),
+                  child: Text(
+                    e.value,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: DarkAnalysisTheme.textSecondary,
+                    ),
+                  ),
+                )
+                    .animate(delay: Duration(milliseconds: 80 * e.key))
+                    .scale(begin: const Offset(0.8, 0.8))
+                    .fadeIn(duration: 300.ms),
+              )
+              .toList(),
         ),
       ],
     );
@@ -1209,44 +1689,47 @@ class _DarkScoreCardWidgetState extends State<DarkScoreCardWidget>
     return Wrap(
       spacing: 10,
       runSpacing: 10,
-      children: tags.asMap().entries.map(
-        (e) => Container(
-          padding:
-              const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          decoration: BoxDecoration(
-            color: DarkAnalysisTheme.surface,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: DarkAnalysisTheme.border),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                e.value.key.toUpperCase(),
-                style: const TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w600,
-                  color: DarkAnalysisTheme.textMuted,
-                  letterSpacing: 1.0,
-                ),
+      children: tags
+          .asMap()
+          .entries
+          .map(
+            (e) => Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              decoration: BoxDecoration(
+                color: DarkAnalysisTheme.surface,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: DarkAnalysisTheme.border),
               ),
-              const SizedBox(height: 2),
-              Text(
-                e.value.value,
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color: DarkAnalysisTheme.textPrimary,
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    e.value.key.toUpperCase(),
+                    style: const TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: DarkAnalysisTheme.textMuted,
+                      letterSpacing: 1.0,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    e.value.value,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: DarkAnalysisTheme.textPrimary,
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
-        )
-            .animate(delay: Duration(milliseconds: 150 * e.key))
-            .fadeIn(duration: 500.ms)
-            .slideY(begin: 0.1, end: 0),
-      ).toList(),
+            )
+                .animate(delay: Duration(milliseconds: 150 * e.key))
+                .fadeIn(duration: 500.ms)
+                .slideY(begin: 0.1, end: 0),
+          )
+          .toList(),
     );
   }
 
@@ -1297,8 +1780,8 @@ class _DarkScoreCardWidgetState extends State<DarkScoreCardWidget>
               GestureDetector(
                 onTap: () => _share(a),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 24, vertical: 12),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
                       colors: [Color(0xFFd4a853), Color(0xFFc4943d)],
@@ -1306,8 +1789,7 @@ class _DarkScoreCardWidgetState extends State<DarkScoreCardWidget>
                     borderRadius: BorderRadius.circular(100),
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFFd4a853)
-                            .withValues(alpha: 0.3),
+                        color: const Color(0xFFd4a853).withValues(alpha: 0.3),
                         blurRadius: 20,
                         offset: const Offset(0, 6),
                       ),
@@ -1335,8 +1817,8 @@ class _DarkScoreCardWidgetState extends State<DarkScoreCardWidget>
               GestureDetector(
                 onTap: () => _copyToClipboard(a),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 24, vertical: 12),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                   decoration: BoxDecoration(
                     color: DarkAnalysisTheme.surfaceElevated,
                     borderRadius: BorderRadius.circular(100),
@@ -1364,10 +1846,7 @@ class _DarkScoreCardWidgetState extends State<DarkScoreCardWidget>
           ),
         ],
       ),
-    )
-        .animate()
-        .fadeIn(duration: 400.ms)
-        .slideY(begin: 0.1, end: 0);
+    ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.1, end: 0);
   }
 
   void _share(StyleAnalysis a) {
@@ -1413,6 +1892,135 @@ class _DarkScoreCardWidgetState extends State<DarkScoreCardWidget>
           ),
         ),
       ],
+    );
+  }
+}
+
+class _PreviewStat extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color color;
+
+  const _PreviewStat({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: DarkAnalysisTheme.surfaceElevated,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: DarkAnalysisTheme.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label.toUpperCase(),
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.1,
+              color: DarkAnalysisTheme.textMuted,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            value,
+            style: GoogleFonts.playfairDisplay(
+              fontSize: 28,
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ModeButton extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _ModeButton({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: selected
+              ? DarkAnalysisTheme.gold.withValues(alpha: 0.14)
+              : DarkAnalysisTheme.surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: selected ? DarkAnalysisTheme.gold : DarkAnalysisTheme.border,
+          ),
+        ),
+        child: Text(
+          label,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+            color:
+                selected ? DarkAnalysisTheme.gold : DarkAnalysisTheme.textMuted,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PreviewToggleChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _PreviewToggleChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        decoration: BoxDecoration(
+          color: selected
+              ? DarkAnalysisTheme.teal.withValues(alpha: 0.14)
+              : DarkAnalysisTheme.surfaceElevated,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: selected ? DarkAnalysisTheme.teal : DarkAnalysisTheme.border,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: selected
+                ? DarkAnalysisTheme.teal
+                : DarkAnalysisTheme.textSecondary,
+          ),
+        ),
+      ),
     );
   }
 }

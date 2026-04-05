@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:styleiq/core/services/subscription_capability_service.dart';
 import 'package:styleiq/features/analysis/models/style_analysis.dart';
 import 'package:styleiq/features/makeover/models/hairstyle_recommendation.dart';
 import 'package:styleiq/features/wardrobe/models/wardrobe_item.dart';
@@ -239,46 +240,19 @@ class LocalStorageService {
     final box = Hive.box<String>(subscriptionBox);
     final raw = box.get(userId);
     if (raw == null) {
-      return SubscriptionPlan(
-        id: 'free',
-        name: 'Free',
-        description: 'Basic plan with daily tips and analysis cap',
-        price: 0.0,
-        currency: 'USD',
-        interval: 'month',
-        features: ['3 analyses / month', 'Basic insights'],
-        maxAnalyses: 3,
-        maxWardrobeItems: 50,
-        hasAiEngine: false,
-        hasCulturalDb: false,
-        hasPrioritySupport: false,
-        isActive: true,
-      );
+      return SubscriptionCapabilityService.freePlan();
     }
     try {
       return SubscriptionPlan.fromJson(
         jsonDecode(raw) as Map<String, dynamic>,
       );
     } catch (_) {
-      return SubscriptionPlan(
-        id: 'free',
-        name: 'Free',
-        description: 'Basic plan with daily tips and analysis cap',
-        price: 0.0,
-        currency: 'USD',
-        interval: 'month',
-        features: ['3 analyses / month', 'Basic insights'],
-        maxAnalyses: 3,
-        maxWardrobeItems: 50,
-        hasAiEngine: false,
-        hasCulturalDb: false,
-        hasPrioritySupport: false,
-        isActive: true,
-      );
+      return SubscriptionCapabilityService.freePlan();
     }
   }
 
-  Future<void> saveSubscription(String userId, SubscriptionPlan subscription) async {
+  Future<void> saveSubscription(
+      String userId, SubscriptionPlan subscription) async {
     final box = Hive.box<String>(subscriptionBox);
     await box.put(userId, jsonEncode(subscription.toJson()));
   }
@@ -291,8 +265,8 @@ class LocalStorageService {
     if (raw == null) return [];
 
     try {
-      final items = List<Map<String, dynamic>>.from(
-          jsonDecode(raw) as List<dynamic>);
+      final items =
+          List<Map<String, dynamic>>.from(jsonDecode(raw) as List<dynamic>);
       final notifications = items
           .map((json) => notification_model.Notification.fromJson(json))
           .toList();
@@ -303,8 +277,8 @@ class LocalStorageService {
     }
   }
 
-  Future<void> saveNotifications(
-      String userId, List<notification_model.Notification> notifications) async {
+  Future<void> saveNotifications(String userId,
+      List<notification_model.Notification> notifications) async {
     final box = Hive.box<String>(notificationsBox);
     final payload = notifications.map((n) => n.toJson()).toList();
     await box.put(userId, jsonEncode(payload));
@@ -316,7 +290,8 @@ class LocalStorageService {
     await saveNotifications(userId, [notification, ...existing]);
   }
 
-  Future<void> markNotificationRead(String userId, String notificationId) async {
+  Future<void> markNotificationRead(
+      String userId, String notificationId) async {
     final current = await getNotifications(userId);
     final updated = current
         .map((n) => n.id == notificationId ? n.markAsRead() : n)
@@ -374,10 +349,8 @@ class LocalStorageService {
   /// Clear all wardrobe items for a user
   Future<void> clearWardrobeItems(String userId) async {
     final box = Hive.box<String>(wardrobeBox);
-    final keysToDelete = box.keys
-        .cast<String>()
-        .where((k) => k.startsWith(userId))
-        .toList();
+    final keysToDelete =
+        box.keys.cast<String>().where((k) => k.startsWith(userId)).toList();
     for (final key in keysToDelete) {
       await box.delete(key);
     }
@@ -392,14 +365,17 @@ class LocalStorageService {
   /// Get hairstyle history, newest first
   Future<List<HairstyleResult>> getHairstyleHistory() async {
     final box = Hive.box<String>(hairstyleBox);
-    final results = box.values.map((raw) {
-      try {
-        return HairstyleResult.fromJson(
-            jsonDecode(raw) as Map<String, dynamic>);
-      } catch (_) {
-        return null;
-      }
-    }).whereType<HairstyleResult>().toList();
+    final results = box.values
+        .map((raw) {
+          try {
+            return HairstyleResult.fromJson(
+                jsonDecode(raw) as Map<String, dynamic>);
+          } catch (_) {
+            return null;
+          }
+        })
+        .whereType<HairstyleResult>()
+        .toList();
     results.sort((a, b) => b.analyzedAt.compareTo(a.analyzedAt));
     return results;
   }

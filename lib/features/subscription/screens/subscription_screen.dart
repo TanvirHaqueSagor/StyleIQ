@@ -1,16 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:styleiq/core/services/app_user_service.dart';
+import 'package:styleiq/core/services/subscription_capability_service.dart';
 import 'package:styleiq/core/theme/app_theme.dart';
 import 'package:styleiq/models/subscription_plan.dart';
 import 'package:styleiq/services/storage/local_storage_service.dart';
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
-const Color _surface     = Color(0xFFFAF9FF);
+const Color _surface = Color(0xFFFAF9FF);
 const Color _surfaceCard = Color(0xFFFFFFFF);
-const Color _onSurface   = Color(0xFF1A1528);
-const Color _midTone     = Color(0xFF6B6882);
-const Color _gold        = Color(0xFFEF9F27);
+const Color _onSurface = Color(0xFF1A1528);
+const Color _midTone = Color(0xFF6B6882);
+const Color _gold = Color(0xFFEF9F27);
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Plan UI metadata (id matches SubscriptionPlan.id)
@@ -23,31 +25,31 @@ const _planMeta = {
       'Basic style scoring',
       'Cultural dress guide',
       'Wardrobe up to 10 items',
+      'Local-only progress tracking',
     ],
   ),
   'style_plus': (
     accent: AppTheme.primaryMain,
-    badge: 'Most popular',
+    badge: 'Coming soon',
     features: [
-      'Unlimited outfit analyses',
+      '30 outfit analyses per month',
       '5 makeovers per month',
       'Wardrobe up to 50 items',
-      'Advanced scoring dimensions',
+      'Deeper progress insights',
       'Priority AI processing',
-      'Cultural deep-dives',
+      'Notify me when billing launches',
     ],
   ),
   'style_pro': (
     accent: _gold,
-    badge: 'Full access',
+    badge: 'Preview',
     features: [
       'Everything in Style+',
       'Unlimited makeovers',
       'Unlimited wardrobe items',
       'Style DNA profile',
-      'Live camera scoring',
-      'Hairstyle intelligence',
-      'Priority support',
+      'Live camera scoring preview',
+      'Priority access when payments launch',
     ],
   ),
 };
@@ -60,48 +62,18 @@ class SubscriptionScreen extends StatefulWidget {
 }
 
 class _SubscriptionScreenState extends State<SubscriptionScreen> {
-  static const String _userId = 'guest';
   final LocalStorageService _storage = LocalStorageService();
 
   late Future<SubscriptionPlan> _currentPlanFuture;
   String _selectedId = 'style_plus';
   bool _processing = false;
-
-  List<SubscriptionPlan> get _availablePlans => [
-        SubscriptionPlan(
-          id: 'free',
-          name: 'Free',
-          price: 0.0,
-          interval: 'month',
-          features: _planMeta['free']!.features,
-          maxAnalyses: 3,
-          maxWardrobeItems: 10,
-        ),
-        SubscriptionPlan(
-          id: 'style_plus',
-          name: 'Style+',
-          price: 4.99,
-          interval: 'month',
-          features: _planMeta['style_plus']!.features,
-          hasAiEngine: true,
-          hasCulturalDb: true,
-        ),
-        SubscriptionPlan(
-          id: 'style_pro',
-          name: 'Style Pro',
-          price: 9.99,
-          interval: 'month',
-          features: _planMeta['style_pro']!.features,
-          hasAiEngine: true,
-          hasCulturalDb: true,
-          hasPrioritySupport: true,
-        ),
-      ];
+  List<SubscriptionPlan> get _availablePlans =>
+      SubscriptionCapabilityService.catalog();
 
   @override
   void initState() {
     super.initState();
-    _currentPlanFuture = _storage.getSubscription(_userId);
+    _currentPlanFuture = _storage.getSubscription(AppUserService.currentUserId);
     _currentPlanFuture.then((p) {
       if (mounted && p.id == 'free') {
         setState(() => _selectedId = 'style_plus');
@@ -126,8 +98,8 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
         final accent = meta?.accent ?? AppTheme.primaryMain;
         return Dialog(
           backgroundColor: _surfaceCard,
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(24)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
             child: Column(
@@ -144,7 +116,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                 ),
                 const SizedBox(height: 18),
                 Text(
-                  'Payments coming soon!',
+                  'Upgrade coming soon',
                   style: GoogleFonts.notoSerif(
                     fontSize: 20,
                     fontWeight: FontWeight.w700,
@@ -154,7 +126,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'We\'re setting up secure payments. ${plan.name} subscriptions will be available very soon. We\'ll notify you when ready!',
+                  'Billing is not live yet. ${plan.name} is shown as a preview so you can understand the value. For now, your progress stays local on this device.',
                   style: GoogleFonts.inter(
                       fontSize: 14, color: _midTone, height: 1.5),
                   textAlign: TextAlign.center,
@@ -214,19 +186,17 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                       ).animate().fadeIn(duration: 300.ms),
                       const SizedBox(height: 6),
                       Text(
-                        'Choose a plan and start dressing with confidence.',
+                        'See what is available now and what is still in preview.',
                         style: GoogleFonts.inter(
                             fontSize: 14, color: _midTone, height: 1.5),
                       ).animate().fadeIn(duration: 380.ms),
                       const SizedBox(height: 28),
-                      if (snapshot.connectionState ==
-                          ConnectionState.waiting)
+                      if (snapshot.connectionState == ConnectionState.waiting)
                         const Center(child: CircularProgressIndicator())
                       else
                         ...List.generate(
                           _availablePlans.length,
-                          (i) => _buildPlanCard(
-                                  _availablePlans[i], current)
+                          (i) => _buildPlanCard(_availablePlans[i], current)
                               .animate(
                                 delay: Duration(milliseconds: 60 * i),
                               )
@@ -236,7 +206,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                       const SizedBox(height: 24),
                       Center(
                         child: Text(
-                          'Subscriptions renew monthly. Cancel anytime.',
+                          'Local-first today. Paid upgrades will become available when billing launches.',
                           style: GoogleFonts.inter(
                               fontSize: 12,
                               color: _midTone.withValues(alpha: 0.7)),
@@ -323,14 +293,10 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
         curve: Curves.easeOut,
         margin: const EdgeInsets.only(bottom: 14),
         decoration: BoxDecoration(
-          color: isSelected
-              ? accent.withValues(alpha: 0.05)
-              : _surfaceCard,
+          color: isSelected ? accent.withValues(alpha: 0.05) : _surfaceCard,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: isSelected
-                ? accent
-                : accent.withValues(alpha: 0.18),
+            color: isSelected ? accent : accent.withValues(alpha: 0.18),
             width: isSelected ? 2 : 1.5,
           ),
           boxShadow: [
@@ -398,8 +364,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                       ),
                       Text(
                         plan.isFree ? 'forever' : 'per month',
-                        style: GoogleFonts.inter(
-                            fontSize: 12, color: _midTone),
+                        style: GoogleFonts.inter(fontSize: 12, color: _midTone),
                       ),
                     ],
                   ),
@@ -468,8 +433,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   }
 
   Widget _buildCta(SubscriptionPlan current) {
-    final selectedPlan =
-        _availablePlans.firstWhere((p) => p.id == _selectedId);
+    final selectedPlan = _availablePlans.firstWhere((p) => p.id == _selectedId);
     final isCurrent = current.id == selectedPlan.id;
     final meta = _planMeta[selectedPlan.id];
     final accent = meta?.accent ?? AppTheme.primaryMain;
@@ -527,8 +491,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                           height: 22,
                           child: CircularProgressIndicator(
                               strokeWidth: 2,
-                              valueColor:
-                                  AlwaysStoppedAnimation(Colors.white)),
+                              valueColor: AlwaysStoppedAnimation(Colors.white)),
                         )
                       : Text(
                           'Subscribe to ${selectedPlan.name} · ${selectedPlan.formattedPrice}/mo',

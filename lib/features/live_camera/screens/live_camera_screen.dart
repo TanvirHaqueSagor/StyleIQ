@@ -44,10 +44,10 @@ class _LiveCameraScreenState extends State<LiveCameraScreen> {
   int _cameraIndex = 0;
   bool _flashOn = false;
 
-  final _changeDetector  = ChangeDetector();
+  final _changeDetector = ChangeDetector();
   final _analysisService = LiveAnalysisService();
-  final _sessionManager  = SessionManager(tier: 'free');
-  final _faceTracker     = FaceTrackerService();
+  final _sessionManager = SessionManager(tier: 'free');
+  final _faceTracker = FaceTrackerService();
 
   TrackedFaceData? _trackedFace;
   StreamSubscription<TrackedFaceData?>? _faceSub;
@@ -184,7 +184,7 @@ class _LiveCameraScreenState extends State<LiveCameraScreen> {
     final ctrl = _cameraCtrl;
     if (ctrl != null && _previewSize != Size.zero) {
       _faceTracker.processFrame(
-        image:      image,
+        image: image,
         controller: ctrl,
         widgetSize: _previewSize,
       );
@@ -533,7 +533,7 @@ class _LiveCameraScreenState extends State<LiveCameraScreen> {
         ),
         content: Text(
           'You have used all ${_sessionManager.callLimit} live analyses this session.\n\n'
-          'Upgrade to Style Pro for longer live sessions.',
+          'Style Pro is still a preview. For now, start a new session later or use standard outfit analysis for your next look.',
           style: GoogleFonts.dmSans(color: Colors.white70, fontSize: 14),
         ),
         actions: [

@@ -4,14 +4,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:styleiq/core/services/app_user_service.dart';
 import 'package:styleiq/core/theme/app_theme.dart';
 import 'package:styleiq/models/privacy_settings.dart';
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
-const Color _surface     = Color(0xFFFAF9FF);
+const Color _surface = Color(0xFFFAF9FF);
 const Color _surfaceCard = Color(0xFFFFFFFF);
-const Color _onSurface   = Color(0xFF1A1528);
-const Color _midTone     = Color(0xFF6B6882);
+const Color _onSurface = Color(0xFF1A1528);
+const Color _midTone = Color(0xFF6B6882);
 // ─────────────────────────────────────────────────────────────────────────────
 
 const String _prefsKey = 'styleiq_privacy_settings_v1';
@@ -20,12 +21,12 @@ class PrivacySettingsScreen extends StatefulWidget {
   const PrivacySettingsScreen({super.key});
 
   @override
-  State<PrivacySettingsScreen> createState() =>
-      _PrivacySettingsScreenState();
+  State<PrivacySettingsScreen> createState() => _PrivacySettingsScreenState();
 }
 
 class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
-  PrivacySettings _settings = PrivacySettings(userId: 'guest');
+  PrivacySettings _settings =
+      PrivacySettings(userId: AppUserService.currentUserId);
   bool _loading = true;
   bool _saving = false;
 
@@ -40,9 +41,14 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
       final prefs = await SharedPreferences.getInstance();
       final raw = prefs.getString(_prefsKey);
       if (raw != null) {
-        final s = PrivacySettings.fromJson(
-            jsonDecode(raw) as Map<String, dynamic>);
-        if (mounted) setState(() { _settings = s; _loading = false; });
+        final s =
+            PrivacySettings.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+        if (mounted) {
+          setState(() {
+            _settings = s;
+            _loading = false;
+          });
+        }
       } else {
         if (mounted) setState(() => _loading = false);
       }
@@ -52,7 +58,10 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
   }
 
   Future<void> _persist(PrivacySettings updated) async {
-    setState(() { _settings = updated; _saving = true; });
+    setState(() {
+      _settings = updated;
+      _saving = true;
+    });
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_prefsKey, jsonEncode(updated.toJson()));
@@ -143,8 +152,8 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
                           subtitle:
                               'Let other StyleIQ users discover your profile',
                           value: _settings.profileVisibility,
-                          onChanged: (v) => _toggle(
-                              (s) => s.copyWith(profileVisibility: v)),
+                          onChanged: (v) =>
+                              _toggle((s) => s.copyWith(profileVisibility: v)),
                         ),
                         _ToggleTile(
                           label: 'Public wardrobe',
@@ -231,8 +240,7 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
       context: context,
       builder: (_) => Dialog(
         backgroundColor: _surfaceCard,
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
           child: Column(
@@ -286,8 +294,8 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
                         );
                       },
                       child: Text('Delete',
-                          style: GoogleFonts.inter(
-                              fontWeight: FontWeight.w700)),
+                          style:
+                              GoogleFonts.inter(fontWeight: FontWeight.w700)),
                     ),
                   ),
                 ],
@@ -423,8 +431,8 @@ class _ToggleTile extends StatelessWidget {
           ),
         ),
         if (showDivider)
-          const Divider(height: 1, indent: 18, endIndent: 18,
-              color: Color(0xFFF0EFF9)),
+          const Divider(
+              height: 1, indent: 18, endIndent: 18, color: Color(0xFFF0EFF9)),
       ],
     );
   }

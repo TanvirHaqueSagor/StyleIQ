@@ -62,12 +62,15 @@ class ClaudeApiService {
       "Letter Grade: S(95-100), A+(90-94), A(85-89), B+(80-84), B(75-79), C+(70-74), C(65-69), D(50-64), F(<50)\n\n"
       "STEP 5 - GENERATE FEEDBACK\n"
       "a) HEADLINE: One punchy memorable line\n"
+      "a2) EASY SUMMARY: One plain-English sentence a non-fashion user can understand immediately\n"
       "b) TOP STRENGTHS: 2-3 specific things that work brilliantly\n"
       "c) IMPROVEMENT SUGGESTIONS: 2-3 suggestions each with what/why/score impact/budget option\n"
-      "d) STYLE INSIGHT: One educational fashion tip\n\n"
+      "d) QUICK WINS: 2-3 ultra-short action lines starting with a verb\n"
+      "e) IMPROVED LOOK NARRATIVE: Describe how the outfit would feel after the suggested changes, in one vivid sentence\n"
+      "f) STYLE INSIGHT: One educational fashion tip\n\n"
       "=== RESPONSE FORMAT ===\n"
       "Return ONLY valid JSON with no markdown, no code blocks:\n"
-      '{"headline":"string","overall_score":number,"letter_grade":"string",'
+      '{"headline":"string","easy_summary":"string","overall_score":number,"letter_grade":"string",'
       '"dimensions":{"color_harmony":{"score":number,"comment":"string"},'
       '"fit_proportion":{"score":number,"comment":"string"},'
       '"occasion_match":{"score":number,"comment":"string"},'
@@ -75,6 +78,7 @@ class ClaudeApiService {
       '"style_cohesion":{"score":number,"comment":"string"}},'
       '"strengths":["string"],"suggestions":[{"change":"string","reason":"string",'
       '"score_impact":"+number","budget_option":"string"}],'
+      '"quick_wins":["string"],"improved_look_narrative":"string",'
       '"style_insight":"string","detected_items":["string"],'
       '"cultural_context":"string or null","body_type_detected":"string",'
       '"season_appropriateness":"string","aesthetic_category":"string"}\n\n'
@@ -191,7 +195,8 @@ class ClaudeApiService {
       throw ClaudeApiException(
         message: 'Network error [${e.type.name}]: ${e.message}',
         code: 'NETWORK_ERROR',
-        originalError: 'Status: ${e.response?.statusCode} | ${e.response?.data ?? e.message}',
+        originalError:
+            'Status: ${e.response?.statusCode} | ${e.response?.data ?? e.message}',
       );
     } catch (e, stack) {
       debugPrint('=== UNKNOWN ERROR (analyzeOutfit) ===\n$e\n$stack');
@@ -279,9 +284,8 @@ class ClaudeApiService {
         'messages': [
           {
             'role': 'user',
-            'content':
-                'Provide complete dress code guidance for $culture culture, '
-                    'specifically for a $occasion occasion. Return the structured JSON as specified.',
+            'content': 'Provide complete dress code guidance for $culture culture, '
+                'specifically for a $occasion occasion. Return the structured JSON as specified.',
           }
         ]
       };
@@ -336,8 +340,7 @@ class ClaudeApiService {
           // Required for direct browser access (Flutter web)
           'anthropic-dangerous-direct-browser-access': 'true',
         },
-        sendTimeout:
-            const Duration(seconds: AppConstants.claudeTimeoutSeconds),
+        sendTimeout: const Duration(seconds: AppConstants.claudeTimeoutSeconds),
         receiveTimeout:
             const Duration(seconds: AppConstants.claudeTimeoutSeconds),
       ),

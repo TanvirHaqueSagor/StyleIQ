@@ -23,12 +23,61 @@ class AnalysisService {
       Uint8List imageBytes, String imageName, String userId) async {
     final analysis =
         await _claudeApiService.analyzeOutfit(imageBytes, imageName);
+    final dataUrl = ImageUtils.toDataUrl(imageBytes, imageName);
+    final generatedMockups = _buildGeneratedMockups(analysis, dataUrl);
     // Attach the image as a data URL so history items can display + replay it
     final withImage = analysis.copyWith(
-      imageUrl: ImageUtils.toDataUrl(imageBytes, imageName),
+      imageUrl: dataUrl,
+      jobStatus: AnalysisJobStatus.completed,
+      generatedMockups: generatedMockups,
     );
     await _storageService.saveStyleAnalysis(withImage, userId);
     return withImage;
+  }
+
+  List<GeneratedMockup> _buildGeneratedMockups(
+    StyleAnalysis analysis,
+    String imageUrl,
+  ) {
+    final mockups = <GeneratedMockup>[];
+    final suggestionSets = analysis.suggestions.take(3).toList();
+    if (suggestionSets.isEmpty) {
+      mockups.add(
+        GeneratedMockup(
+          id: const Uuid().v4(),
+          label: 'Recommended Look',
+          imageUrl: imageUrl,
+          appliedChanges: analysis.quickWins.take(2).toList(),
+          whyItWorks: analysis.improvedLookNarrative ??
+              analysis.easySummary ??
+              'A cleaner, more intentional version of your current look.',
+          provenance:
+              'AI-directed styling mockup based on your original photo.',
+          isPrimary: true,
+        ),
+      );
+      return mockups;
+    }
+
+    for (var i = 0; i < suggestionSets.length; i++) {
+      final suggestion = suggestionSets[i];
+      mockups.add(
+        GeneratedMockup(
+          id: const Uuid().v4(),
+          label: i == 0 ? 'Best Revision' : 'Option ${i + 1}',
+          imageUrl: imageUrl,
+          appliedChanges: [
+            suggestion.change,
+            if (analysis.quickWins.length > i) analysis.quickWins[i],
+          ],
+          whyItWorks: suggestion.reason,
+          provenance:
+              'AI-generated styling preview anchored to your original photo.',
+          isPrimary: i == 0,
+        ),
+      );
+    }
+    return mockups;
   }
 
   /// Get analysis history for a user
@@ -64,8 +113,8 @@ class AnalysisService {
     Uint8List imageBytes,
     String imageName,
   ) async {
-    final recommendation =
-        await _claudeApiService.getHairstyleRecommendations(imageBytes, imageName);
+    final recommendation = await _claudeApiService.getHairstyleRecommendations(
+        imageBytes, imageName);
     final result = HairstyleResult(
       id: const Uuid().v4(),
       recommendation: recommendation,

@@ -4,14 +4,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:styleiq/core/services/app_user_service.dart';
 import 'package:styleiq/core/theme/app_theme.dart';
 import 'package:styleiq/models/notification_settings.dart';
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
-const Color _surface     = Color(0xFFFAF9FF);
+const Color _surface = Color(0xFFFAF9FF);
 const Color _surfaceCard = Color(0xFFFFFFFF);
-const Color _onSurface   = Color(0xFF1A1528);
-const Color _midTone     = Color(0xFF6B6882);
+const Color _onSurface = Color(0xFF1A1528);
+const Color _midTone = Color(0xFF6B6882);
 // ─────────────────────────────────────────────────────────────────────────────
 
 const String _prefsKey = 'styleiq_notification_settings_v1';
@@ -26,7 +27,8 @@ class NotificationSettingsScreen extends StatefulWidget {
 
 class _NotificationSettingsScreenState
     extends State<NotificationSettingsScreen> {
-  NotificationSettings _settings = NotificationSettings(userId: 'guest');
+  NotificationSettings _settings =
+      NotificationSettings(userId: AppUserService.currentUserId);
   bool _loading = true;
   bool _saving = false;
 
@@ -43,7 +45,12 @@ class _NotificationSettingsScreenState
       if (raw != null) {
         final s = NotificationSettings.fromJson(
             jsonDecode(raw) as Map<String, dynamic>);
-        if (mounted) setState(() { _settings = s; _loading = false; });
+        if (mounted) {
+          setState(() {
+            _settings = s;
+            _loading = false;
+          });
+        }
       } else {
         if (mounted) setState(() => _loading = false);
       }
@@ -53,7 +60,10 @@ class _NotificationSettingsScreenState
   }
 
   Future<void> _persist(NotificationSettings updated) async {
-    setState(() { _settings = updated; _saving = true; });
+    setState(() {
+      _settings = updated;
+      _saving = true;
+    });
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_prefsKey, jsonEncode(updated.toJson()));
@@ -93,16 +103,16 @@ class _NotificationSettingsScreenState
                           label: 'Push notifications',
                           subtitle: 'Alerts directly on your device',
                           value: _settings.pushNotifications,
-                          onChanged: (v) => _toggle(
-                              (s) => s.copyWith(pushNotifications: v)),
+                          onChanged: (v) =>
+                              _toggle((s) => s.copyWith(pushNotifications: v)),
                         ),
                         _ToggleTile(
                           label: 'Email notifications',
                           subtitle: 'Updates sent to your inbox',
                           value: _settings.emailNotifications,
                           showDivider: false,
-                          onChanged: (v) => _toggle(
-                              (s) => s.copyWith(emailNotifications: v)),
+                          onChanged: (v) =>
+                              _toggle((s) => s.copyWith(emailNotifications: v)),
                         ),
                       ],
                     ),
@@ -116,22 +126,22 @@ class _NotificationSettingsScreenState
                           label: 'Daily style tips',
                           subtitle: 'One actionable tip every morning',
                           value: _settings.dailyStyleTips,
-                          onChanged: (v) => _toggle(
-                              (s) => s.copyWith(dailyStyleTips: v)),
+                          onChanged: (v) =>
+                              _toggle((s) => s.copyWith(dailyStyleTips: v)),
                         ),
                         _ToggleTile(
                           label: 'Weekly digest',
                           subtitle: 'Your style highlights from the week',
                           value: _settings.weeklyDigest,
-                          onChanged: (v) => _toggle(
-                              (s) => s.copyWith(weeklyDigest: v)),
+                          onChanged: (v) =>
+                              _toggle((s) => s.copyWith(weeklyDigest: v)),
                         ),
                         _ToggleTile(
                           label: 'New features',
                           subtitle: 'Be the first to know what\'s new',
                           value: _settings.newFeatures,
-                          onChanged: (v) => _toggle(
-                              (s) => s.copyWith(newFeatures: v)),
+                          onChanged: (v) =>
+                              _toggle((s) => s.copyWith(newFeatures: v)),
                         ),
                         _ToggleTile(
                           label: 'Cultural reminders',
@@ -139,8 +149,8 @@ class _NotificationSettingsScreenState
                               'Upcoming festivals and dress code heads-ups',
                           value: _settings.culturalReminders,
                           showDivider: false,
-                          onChanged: (v) => _toggle(
-                              (s) => s.copyWith(culturalReminders: v)),
+                          onChanged: (v) =>
+                              _toggle((s) => s.copyWith(culturalReminders: v)),
                         ),
                       ],
                     ),
@@ -298,8 +308,8 @@ class _ToggleTile extends StatelessWidget {
           ),
         ),
         if (showDivider)
-          const Divider(height: 1, indent: 18, endIndent: 18,
-              color: Color(0xFFF0EFF9)),
+          const Divider(
+              height: 1, indent: 18, endIndent: 18, color: Color(0xFFF0EFF9)),
       ],
     );
   }

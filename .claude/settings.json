@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git config:*)",
+      "Read(//Users/tanvirhaque/.ssh/**)",
+      "Read(//Users/tanvirhaque/**)"
+    ]
+  }
+}

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:styleiq/core/services/app_user_service.dart';
 import 'package:styleiq/core/theme/app_theme.dart';
 import 'package:styleiq/features/analysis/models/style_analysis.dart';
 import 'package:styleiq/features/analysis/services/analysis_service.dart';
@@ -16,8 +17,6 @@ class CommunityScreen extends StatefulWidget {
 
 class _CommunityScreenState extends State<CommunityScreen>
     with SingleTickerProviderStateMixin {
-  static const String _guestUserId = 'guest';
-
   final CommunityService _communityService = CommunityService();
   final AnalysisService _analysisService = AnalysisService();
   late final TabController _tabController;
@@ -69,12 +68,15 @@ class _CommunityScreenState extends State<CommunityScreen>
   List<CommunityPost> _applySearch(List<CommunityPost> posts) {
     if (_searchQuery.trim().isEmpty) return posts;
     final q = _searchQuery.toLowerCase();
-    return posts.where((p) =>
-      p.caption.toLowerCase().contains(q) ||
-      p.userName.toLowerCase().contains(q) ||
-      p.tags.any((t) => t.toLowerCase().contains(q)) ||
-      (p.headline?.toLowerCase().contains(q) ?? false),
-    ).toList();
+    return posts
+        .where(
+          (p) =>
+              p.caption.toLowerCase().contains(q) ||
+              p.userName.toLowerCase().contains(q) ||
+              p.tags.any((t) => t.toLowerCase().contains(q)) ||
+              (p.headline?.toLowerCase().contains(q) ?? false),
+        )
+        .toList();
   }
 
   List<CommunityPost> get _trendingPosts {
@@ -90,7 +92,7 @@ class _CommunityScreenState extends State<CommunityScreen>
   }
 
   List<CommunityPost> get _myPosts =>
-      _applySearch(_allPosts.where((p) => p.userId == _guestUserId).toList()
+      _applySearch(_allPosts.where((p) => p.userId == _userId).toList()
         ..sort((a, b) => b.createdAt.compareTo(a.createdAt)));
 
   // ── Like / Bookmark helpers ─────────────────────────────────────────────────
@@ -102,8 +104,7 @@ class _CommunityScreenState extends State<CommunityScreen>
     setState(() {
       _allPosts[idx] = post.copyWith(
         isLikedByMe: !post.isLikedByMe,
-        likeCount:
-            post.isLikedByMe ? post.likeCount - 1 : post.likeCount + 1,
+        likeCount: post.isLikedByMe ? post.likeCount - 1 : post.likeCount + 1,
       );
     });
     await _communityService.toggleLike(post.id);
@@ -113,8 +114,7 @@ class _CommunityScreenState extends State<CommunityScreen>
     final idx = _allPosts.indexWhere((p) => p.id == post.id);
     if (idx == -1) return;
     setState(() {
-      _allPosts[idx] =
-          post.copyWith(isBookmarked: !post.isBookmarked);
+      _allPosts[idx] = post.copyWith(isBookmarked: !post.isBookmarked);
     });
     await _communityService.toggleBookmark(post.id);
   }
@@ -135,7 +135,7 @@ class _CommunityScreenState extends State<CommunityScreen>
   Future<void> _showCreatePostSheet() async {
     List<StyleAnalysis> history = [];
     try {
-      history = await _analysisService.getAnalysisHistory(_guestUserId);
+      history = await _analysisService.getAnalysisHistory(_userId);
     } catch (_) {}
 
     if (!mounted) return;
@@ -192,7 +192,9 @@ class _CommunityScreenState extends State<CommunityScreen>
   // ── Share ───────────────────────────────────────────────────────────────────
 
   void _sharePost(CommunityPost post) {
-    final score = post.score != null ? ' • Score ${post.score!.toStringAsFixed(0)}/100' : '';
+    final score = post.score != null
+        ? ' • Score ${post.score!.toStringAsFixed(0)}/100'
+        : '';
     final tags = post.tags.join(' ');
     Share.share(
       '${post.caption}$score\n$tags\n\nShared via StyleIQ ✨',
@@ -206,8 +208,7 @@ class _CommunityScreenState extends State<CommunityScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.scaffoldBg,
-      floatingActionButtonLocation:
-          FloatingActionButtonLocation.centerFloat,
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       floatingActionButton: _buildFab(),
       body: CustomScrollView(
         slivers: [
@@ -282,14 +283,27 @@ class _CommunityScreenState extends State<CommunityScreen>
       surfaceTintColor: Colors.transparent,
       iconTheme: const IconThemeData(color: Colors.white),
       centerTitle: false,
-      title: const Text(
-        'Community',
-        style: TextStyle(
-          color: Colors.white,
-          fontWeight: FontWeight.w800,
-          fontSize: 18,
-          letterSpacing: -0.2,
-        ),
+      title: const Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Community',
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
+              fontSize: 18,
+              letterSpacing: -0.2,
+            ),
+          ),
+          Text(
+            'Preview',
+            style: TextStyle(
+              color: Colors.white70,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
       ),
       actions: [
         GestureDetector(
@@ -368,8 +382,10 @@ class _CommunityScreenState extends State<CommunityScreen>
                   ? IconButton(
                       icon: const Icon(Icons.close_rounded,
                           color: AppTheme.mediumGrey, size: 18),
-                      onPressed: () =>
-                          setState(() { _searchController.clear(); _searchQuery = ''; }),
+                      onPressed: () => setState(() {
+                        _searchController.clear();
+                        _searchQuery = '';
+                      }),
                     )
                   : null,
               border: InputBorder.none,
@@ -464,8 +480,8 @@ class _CommunityScreenState extends State<CommunityScreen>
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14),
                 ),
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 20, vertical: 14),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
               ),
             ),
           ],
@@ -667,15 +683,21 @@ class _PostCard extends StatelessWidget {
             ListTile(
               leading: const Icon(Icons.ios_share_rounded),
               title: const Text('Share post'),
-              onTap: () { Navigator.pop(context); onShare(); },
+              onTap: () {
+                Navigator.pop(context);
+                onShare();
+              },
             ),
             ListTile(
               leading: const Icon(Icons.flag_outlined, color: AppTheme.coral),
-              title: const Text('Report post', style: TextStyle(color: AppTheme.coral)),
+              title: const Text('Report post',
+                  style: TextStyle(color: AppTheme.coral)),
               onTap: () {
                 Navigator.pop(context);
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Post reported — thank you for your feedback')),
+                  const SnackBar(
+                      content:
+                          Text('Post reported — thank you for your feedback')),
                 );
               },
             ),
@@ -722,8 +744,7 @@ class _PostCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 8, vertical: 3),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(6),
@@ -794,8 +815,7 @@ class _PostCard extends StatelessWidget {
         separatorBuilder: (_, __) => const SizedBox(width: 6),
         itemBuilder: (_, i) {
           return Container(
-            padding: const EdgeInsets.symmetric(
-                horizontal: 10, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
               color: AppTheme.primaryMain.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(12),
@@ -826,9 +846,7 @@ class _PostCard extends StatelessWidget {
             icon: post.isLikedByMe
                 ? Icons.favorite_rounded
                 : Icons.favorite_border_rounded,
-            iconColor: post.isLikedByMe
-                ? AppTheme.coral
-                : AppTheme.mediumGrey,
+            iconColor: post.isLikedByMe ? AppTheme.coral : AppTheme.mediumGrey,
             label: '${post.likeCount}',
             onTap: onLike,
           ),
@@ -845,9 +863,8 @@ class _PostCard extends StatelessWidget {
             icon: post.isBookmarked
                 ? Icons.bookmark_rounded
                 : Icons.bookmark_border_rounded,
-            iconColor: post.isBookmarked
-                ? AppTheme.primaryMain
-                : AppTheme.mediumGrey,
+            iconColor:
+                post.isBookmarked ? AppTheme.primaryMain : AppTheme.mediumGrey,
             label: '',
             onTap: onBookmark,
           ),
@@ -957,7 +974,6 @@ class _CreatePostSheet extends StatefulWidget {
 }
 
 class _CreatePostSheetState extends State<_CreatePostSheet> {
-  static const String _guestUserId = 'guest';
   static const _availableTags = [
     'Casual',
     'Formal',
@@ -992,7 +1008,7 @@ class _CreatePostSheetState extends State<_CreatePostSheet> {
     setState(() => _isPosting = true);
 
     final post = CommunityPost(
-      userId: _guestUserId,
+      userId: AppUserService.currentUserId,
       userName: 'You',
       userInitials: 'YO',
       avatarColor: 0xFF534AB7,
@@ -1029,8 +1045,7 @@ class _CreatePostSheetState extends State<_CreatePostSheet> {
         ),
         decoration: const BoxDecoration(
           color: Colors.white,
-          borderRadius:
-              BorderRadius.vertical(top: Radius.circular(24)),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -1137,9 +1152,8 @@ class _CreatePostSheetState extends State<_CreatePostSheet> {
                             child: Text(
                               '#${tag.toLowerCase()}',
                               style: TextStyle(
-                                color: selected
-                                    ? Colors.white
-                                    : AppTheme.darkGrey,
+                                color:
+                                    selected ? Colors.white : AppTheme.darkGrey,
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
                               ),
@@ -1253,13 +1267,11 @@ class _CreatePostSheetState extends State<_CreatePostSheet> {
             itemBuilder: (_, i) {
               final analysis = widget.history[i];
               final isSelected = _selectedAnalysis == analysis;
-              final scoreColor =
-                  AppTheme.getScoreColor(analysis.overallScore);
+              final scoreColor = AppTheme.getScoreColor(analysis.overallScore);
 
               return GestureDetector(
                 onTap: () => setState(() {
-                  _selectedAnalysis =
-                      isSelected ? null : analysis;
+                  _selectedAnalysis = isSelected ? null : analysis;
                 }),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 180),
@@ -1354,7 +1366,12 @@ class _CommentsSheetState extends State<_CommentsSheet> {
 
   Future<void> _loadComments() async {
     final comments = await widget.service.getComments(widget.post.id);
-    if (mounted) setState(() { _comments = comments; _loading = false; });
+    if (mounted) {
+      setState(() {
+        _comments = comments;
+        _loading = false;
+      });
+    }
   }
 
   Future<void> _submitComment() async {
@@ -1386,7 +1403,10 @@ class _CommentsSheetState extends State<_CommentsSheet> {
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
             child: Text(
               'Comments',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+              style: Theme.of(context)
+                  .textTheme
+                  .titleMedium
+                  ?.copyWith(fontWeight: FontWeight.w700),
             ),
           ),
           const Divider(height: 1),
@@ -1398,32 +1418,41 @@ class _CommentsSheetState extends State<_CommentsSheet> {
                     child: Center(child: CircularProgressIndicator()),
                   )
                 : _comments.isEmpty
-                ? const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 32),
-                    child: Text('No comments yet — be the first!',
-                        style: TextStyle(color: AppTheme.mediumGrey)),
-                  )
-                : ListView.separated(
-                    shrinkWrap: true,
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    itemCount: _comments.length,
-                    separatorBuilder: (_, __) => const Divider(height: 1, indent: 56),
-                    itemBuilder: (_, i) {
-                      final c = _comments[i];
-                      return ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor: AppTheme.primaryMain.withValues(alpha: 0.15),
-                          child: Text(
-                            c['author']![0],
-                            style: const TextStyle(color: AppTheme.primaryMain, fontWeight: FontWeight.w700),
-                          ),
-                        ),
-                        title: Text(c['author']!, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
-                        subtitle: Text(c['text']!, style: const TextStyle(fontSize: 13)),
-                        trailing: Text(c['time']!, style: const TextStyle(color: AppTheme.mediumGrey, fontSize: 11)),
-                      );
-                    },
-                  ),
+                    ? const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 32),
+                        child: Text('No comments yet — be the first!',
+                            style: TextStyle(color: AppTheme.mediumGrey)),
+                      )
+                    : ListView.separated(
+                        shrinkWrap: true,
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        itemCount: _comments.length,
+                        separatorBuilder: (_, __) =>
+                            const Divider(height: 1, indent: 56),
+                        itemBuilder: (_, i) {
+                          final c = _comments[i];
+                          return ListTile(
+                            leading: CircleAvatar(
+                              backgroundColor:
+                                  AppTheme.primaryMain.withValues(alpha: 0.15),
+                              child: Text(
+                                c['author']![0],
+                                style: const TextStyle(
+                                    color: AppTheme.primaryMain,
+                                    fontWeight: FontWeight.w700),
+                              ),
+                            ),
+                            title: Text(c['author']!,
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w600, fontSize: 13)),
+                            subtitle: Text(c['text']!,
+                                style: const TextStyle(fontSize: 13)),
+                            trailing: Text(c['time']!,
+                                style: const TextStyle(
+                                    color: AppTheme.mediumGrey, fontSize: 11)),
+                          );
+                        },
+                      ),
           ),
           const Divider(height: 1),
           Padding(
@@ -1435,14 +1464,16 @@ class _CommentsSheetState extends State<_CommentsSheet> {
                     controller: _commentController,
                     decoration: InputDecoration(
                       hintText: 'Add a comment…',
-                      hintStyle: const TextStyle(color: AppTheme.mediumGrey, fontSize: 14),
+                      hintStyle: const TextStyle(
+                          color: AppTheme.mediumGrey, fontSize: 14),
                       filled: true,
                       fillColor: AppTheme.lightGrey,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(24),
                         borderSide: BorderSide.none,
                       ),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 10),
                     ),
                     onSubmitted: (_) => _submitComment(),
                   ),
@@ -1457,7 +1488,8 @@ class _CommentsSheetState extends State<_CommentsSheet> {
                       color: AppTheme.primaryMain,
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(Icons.send_rounded, color: Colors.white, size: 18),
+                    child: const Icon(Icons.send_rounded,
+                        color: Colors.white, size: 18),
                   ),
                 ),
               ],
@@ -1517,7 +1549,8 @@ class _PostDetailSheetState extends State<_PostDetailSheet> {
           // Handle
           Container(
             margin: const EdgeInsets.only(top: 12, bottom: 8),
-            width: 36, height: 4,
+            width: 36,
+            height: 4,
             decoration: BoxDecoration(
               color: AppTheme.mediumGrey.withValues(alpha: 0.4),
               borderRadius: BorderRadius.circular(2),
@@ -1532,14 +1565,18 @@ class _PostDetailSheetState extends State<_PostDetailSheet> {
                 Row(
                   children: [
                     Container(
-                      width: 44, height: 44,
+                      width: 44,
+                      height: 44,
                       decoration: BoxDecoration(
                         color: Color(_post.avatarColor),
                         shape: BoxShape.circle,
                       ),
                       alignment: Alignment.center,
                       child: Text(_post.userInitials,
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 15)),
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 15)),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -1547,9 +1584,13 @@ class _PostDetailSheetState extends State<_PostDetailSheet> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(_post.userName,
-                              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: AppTheme.dark)),
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 15,
+                                  color: AppTheme.dark)),
                           Text(widget.timeAgo,
-                              style: const TextStyle(color: AppTheme.mediumGrey, fontSize: 12)),
+                              style: const TextStyle(
+                                  color: AppTheme.mediumGrey, fontSize: 12)),
                         ],
                       ),
                     ),
@@ -1566,7 +1607,10 @@ class _PostDetailSheetState extends State<_PostDetailSheet> {
                       gradient: LinearGradient(
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
-                        colors: [AppTheme.primaryDark, scoreColor.withValues(alpha: 0.9)],
+                        colors: [
+                          AppTheme.primaryDark,
+                          scoreColor.withValues(alpha: 0.9)
+                        ],
                       ),
                       borderRadius: BorderRadius.circular(18),
                     ),
@@ -1579,8 +1623,10 @@ class _PostDetailSheetState extends State<_PostDetailSheet> {
                             Text(
                               _post.score!.toStringAsFixed(0),
                               style: const TextStyle(
-                                color: Colors.white, fontSize: 64,
-                                fontWeight: FontWeight.w900, height: 1,
+                                color: Colors.white,
+                                fontSize: 64,
+                                fontWeight: FontWeight.w900,
+                                height: 1,
                               ),
                             ),
                             const SizedBox(width: 8),
@@ -1590,25 +1636,36 @@ class _PostDetailSheetState extends State<_PostDetailSheet> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 10, vertical: 4),
                                     decoration: BoxDecoration(
-                                      color: Colors.white.withValues(alpha: 0.2),
+                                      color:
+                                          Colors.white.withValues(alpha: 0.2),
                                       borderRadius: BorderRadius.circular(8),
                                     ),
                                     child: Text(_post.grade ?? '',
-                                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 16)),
+                                        style: const TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.w800,
+                                            fontSize: 16)),
                                   ),
                                   const SizedBox(height: 4),
-                                  const Text('/100', style: TextStyle(color: Colors.white54, fontSize: 12)),
+                                  const Text('/100',
+                                      style: TextStyle(
+                                          color: Colors.white54, fontSize: 12)),
                                 ],
                               ),
                             ),
                           ],
                         ),
-                        if (_post.headline != null && _post.headline!.isNotEmpty) ...[
+                        if (_post.headline != null &&
+                            _post.headline!.isNotEmpty) ...[
                           const SizedBox(height: 8),
                           Text(_post.headline!,
-                              style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600)),
                         ],
                         const SizedBox(height: 12),
                         // Score bar
@@ -1616,8 +1673,10 @@ class _PostDetailSheetState extends State<_PostDetailSheet> {
                           borderRadius: BorderRadius.circular(4),
                           child: LinearProgressIndicator(
                             value: _post.score! / 100,
-                            backgroundColor: Colors.white.withValues(alpha: 0.2),
-                            valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+                            backgroundColor:
+                                Colors.white.withValues(alpha: 0.2),
+                            valueColor: const AlwaysStoppedAnimation<Color>(
+                                Colors.white),
                             minHeight: 6,
                           ),
                         ),
@@ -1629,21 +1688,31 @@ class _PostDetailSheetState extends State<_PostDetailSheet> {
 
                 // Caption
                 Text(_post.caption,
-                    style: const TextStyle(color: AppTheme.darkGrey, fontSize: 15, height: 1.5)),
+                    style: const TextStyle(
+                        color: AppTheme.darkGrey, fontSize: 15, height: 1.5)),
                 const SizedBox(height: 12),
 
                 // Tags
                 if (_post.tags.isNotEmpty)
                   Wrap(
-                    spacing: 8, runSpacing: 6,
-                    children: _post.tags.map((t) => Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: AppTheme.primaryMain.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(t, style: const TextStyle(color: AppTheme.primaryMain, fontSize: 12, fontWeight: FontWeight.w600)),
-                    )).toList(),
+                    spacing: 8,
+                    runSpacing: 6,
+                    children: _post.tags
+                        .map((t) => Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: AppTheme.primaryMain
+                                    .withValues(alpha: 0.08),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(t,
+                                  style: const TextStyle(
+                                      color: AppTheme.primaryMain,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600)),
+                            ))
+                        .toList(),
                   ),
                 const SizedBox(height: 20),
                 const Divider(),
@@ -1653,15 +1722,21 @@ class _PostDetailSheetState extends State<_PostDetailSheet> {
                 Row(
                   children: [
                     _ActionButton(
-                      icon: _post.isLikedByMe ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-                      iconColor: _post.isLikedByMe ? AppTheme.coral : AppTheme.mediumGrey,
+                      icon: _post.isLikedByMe
+                          ? Icons.favorite_rounded
+                          : Icons.favorite_border_rounded,
+                      iconColor: _post.isLikedByMe
+                          ? AppTheme.coral
+                          : AppTheme.mediumGrey,
                       label: '${_post.likeCount}',
                       onTap: () {
                         widget.onLike();
                         setState(() {
                           _post = _post.copyWith(
                             isLikedByMe: !_post.isLikedByMe,
-                            likeCount: _post.isLikedByMe ? _post.likeCount - 1 : _post.likeCount + 1,
+                            likeCount: _post.isLikedByMe
+                                ? _post.likeCount - 1
+                                : _post.likeCount + 1,
                           );
                         });
                       },
@@ -1678,9 +1753,11 @@ class _PostDetailSheetState extends State<_PostDetailSheet> {
                               context: context,
                               isScrollControlled: true,
                               shape: const RoundedRectangleBorder(
-                                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                                borderRadius: BorderRadius.vertical(
+                                    top: Radius.circular(24)),
                               ),
-                              builder: (_) => _CommentsSheet(post: _post, service: widget.service),
+                              builder: (_) => _CommentsSheet(
+                                  post: _post, service: widget.service),
                             );
                           }
                         });
@@ -1688,12 +1765,17 @@ class _PostDetailSheetState extends State<_PostDetailSheet> {
                     ),
                     const Spacer(),
                     _ActionButton(
-                      icon: _post.isBookmarked ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
-                      iconColor: _post.isBookmarked ? AppTheme.primaryMain : AppTheme.mediumGrey,
+                      icon: _post.isBookmarked
+                          ? Icons.bookmark_rounded
+                          : Icons.bookmark_border_rounded,
+                      iconColor: _post.isBookmarked
+                          ? AppTheme.primaryMain
+                          : AppTheme.mediumGrey,
                       label: '',
                       onTap: () {
                         widget.onBookmark();
-                        setState(() => _post = _post.copyWith(isBookmarked: !_post.isBookmarked));
+                        setState(() => _post =
+                            _post.copyWith(isBookmarked: !_post.isBookmarked));
                       },
                     ),
                     _ActionButton(
@@ -1712,3 +1794,5 @@ class _PostDetailSheetState extends State<_PostDetailSheet> {
     );
   }
 }
+
+String get _userId => AppUserService.currentUserId;

@@ -27,9 +27,13 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>StyleIQ needs camera access to analyze your outfits</string>
+	<string>StyleIQ uses the camera to analyse your outfit and provide live style scoring.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>StyleIQ needs gallery access to analyze your outfit photos</string>
+	<string>StyleIQ reads photos from your library to analyse your outfit and build your wardrobe.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>StyleIQ saves generated style cards to your photo library so you can share them.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>StyleIQ does not use the microphone.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
